@@ -213,3 +213,41 @@ def get_today_water(current_user):
     return jsonify({
         'water': water_log.amount_ml if water_log else 0
     }), 200
+
+
+
+@meals_bp.route('/api/meals/date/<date_str>', methods=['GET'])
+@cross_origin()
+@token_required
+def get_meals_by_date(current_user, date_str):
+    """Get all meals for a specific date"""
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    
+    meals = Meal.query.filter_by(
+        user_id=current_user.id,
+        date=target_date
+    ).order_by(Meal.created_at.desc()).all()
+    
+    # Calculate totals
+    totals = {
+        'calories': sum(m.total_calories or 0 for m in meals),
+        'protein': sum(m.total_protein or 0 for m in meals),
+        'carbs': sum(m.total_carbs or 0 for m in meals),
+        'fat': sum(m.total_fat or 0 for m in meals)
+    }
+    
+    # Get water intake for that date
+    water_log = WaterLog.query.filter_by(
+        user_id=current_user.id,
+        date=target_date
+    ).first()
+    
+    return jsonify({
+        'date': target_date.isoformat(),
+        'meals': [meal.to_dict() for meal in meals],
+        'totals': totals,
+        'water': water_log.amount_ml if water_log else 0
+    }), 200
