@@ -11,8 +11,7 @@ def generate_uuid():
 
 class User(db.Model):
     __tablename__ = 'users'
-    
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
    
@@ -39,15 +38,15 @@ class User(db.Model):
 class Profile(db.Model):
     __tablename__ = 'profiles'
     
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
     name = db.Column(db.String(100))
     age = db.Column(db.Integer)
-    gender = db.Column(db.String(20))  # male, female, other
+    gender = db.Column(db.String(50))  # male, female, other
     height = db.Column(db.Float)  # cm
     weight = db.Column(db.Float)  # kg
     goal = db.Column(db.String(50))  # gain_muscle, lose_fat, maintain, etc.
-    activity_level = db.Column(db.String(20))  # sedentary, light, moderate, active, very_active
+    activity_level = db.Column(db.String(50))  # sedentary, light, moderate, active, very_active
     allergies = db.Column(db.JSON, default=list)
     health_conditions = db.Column(db.JSON, default=list)
     dietary_preferences = db.Column(db.JSON, default=list)
@@ -63,8 +62,8 @@ class Profile(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
-            'user_id': self.user_id,
+            'id': str(self.id),
+            'user_id': str(self.user_id),
             'name': self.name,
             'age': self.age,
             'gender': self.gender,
@@ -87,9 +86,9 @@ class Profile(db.Model):
 
 class UserRole(db.Model):
     __tablename__ = 'user_roles'
-    
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
+  
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
     role = db.Column(db.String(20), nullable=False, default='user')  # user, pro (future)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -98,8 +97,8 @@ class UserRole(db.Model):
 class Meal(db.Model):
     __tablename__ = 'meals'
     
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     name = db.Column(db.String(255), nullable=False)
     meal_type = db.Column(db.String(20))  # breakfast, lunch, dinner, snack
     date = db.Column(db.Date, nullable=False, index=True)
@@ -115,8 +114,8 @@ class Meal(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
-            'user_id': self.user_id,
+            'id': str(self.id),
+            'user_id': str(self.user_id),
             'name': self.name,
             'meal_type': self.meal_type,
             'date': self.date.isoformat() if self.date else None,
@@ -135,8 +134,8 @@ class Meal(db.Model):
 class FoodItem(db.Model):
     __tablename__ = 'food_items'
     
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
-    meal_id = db.Column(db.String(36), db.ForeignKey('meals.id', ondelete='CASCADE'), nullable=False, index=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meal_id = db.Column(UUID(as_uuid=True), db.ForeignKey('meals.id', ondelete='CASCADE'), nullable=False, index=True)
     name = db.Column(db.String(255), nullable=False)
     grams = db.Column(db.Float)
     calories = db.Column(db.Integer, default=0)
@@ -147,7 +146,7 @@ class FoodItem(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
+            'id': str(self.id),
             'name': self.name,
             'grams': self.grams,
             'calories': self.calories,
@@ -161,8 +160,8 @@ class FoodItem(db.Model):
 class WaterLog(db.Model):
     __tablename__ = 'water_logs'
     
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     date = db.Column(db.Date, nullable=False, index=True)
     amount_ml = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -174,8 +173,8 @@ class WaterLog(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
-            'user_id': self.user_id,
+            'id': str(self.id),
+            'user_id': str(self.user_id),
             'date': self.date.isoformat() if self.date else None,
             'amount_ml': self.amount_ml
         }
