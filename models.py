@@ -92,3 +92,90 @@ class UserRole(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
     role = db.Column(db.String(20), nullable=False, default='user')  # user, pro (future)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+
+class Meal(db.Model):
+    __tablename__ = 'meals'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    meal_type = db.Column(db.String(20))  # breakfast, lunch, dinner, snack
+    date = db.Column(db.Date, nullable=False, index=True)
+    total_calories = db.Column(db.Integer, default=0)
+    total_protein = db.Column(db.Float, default=0)
+    total_carbs = db.Column(db.Float, default=0)
+    total_fat = db.Column(db.Float, default=0)
+    image_url = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to food items
+    food_items = db.relationship('FoodItem', backref='meal', cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'meal_type': self.meal_type,
+            'date': self.date.isoformat() if self.date else None,
+            'totals': {
+                'calories': self.total_calories,
+                'protein': self.total_protein,
+                'carbs': self.total_carbs,
+                'fat': self.total_fat
+            },
+            'image_url': self.image_url,
+            'items': [item.to_dict() for item in self.food_items],
+            'timestamp': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class FoodItem(db.Model):
+    __tablename__ = 'food_items'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    meal_id = db.Column(db.String(36), db.ForeignKey('meals.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    grams = db.Column(db.Float)
+    calories = db.Column(db.Integer, default=0)
+    protein = db.Column(db.Float, default=0)
+    carbs = db.Column(db.Float, default=0)
+    fat = db.Column(db.Float, default=0)
+    confidence = db.Column(db.Float)  # AI confidence score
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'grams': self.grams,
+            'calories': self.calories,
+            'protein': self.protein,
+            'carbs': self.carbs,
+            'fat': self.fat,
+            'confidence': self.confidence
+        }
+
+
+class WaterLog(db.Model):
+    __tablename__ = 'water_logs'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    amount_ml = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'date', name='unique_user_water_date'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'date': self.date.isoformat() if self.date else None,
+            'amount_ml': self.amount_ml
+        }
