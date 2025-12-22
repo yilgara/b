@@ -89,7 +89,7 @@ Use the Mifflin-St Jeor equation as a base for BMR calculation, then adjust for 
         print("Gemini client initialized, making API call...")
         
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-flash-latest',
             contents=prompt
         )
         print("Gemini API call successful!")
