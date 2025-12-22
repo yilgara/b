@@ -8,6 +8,9 @@ from profile import profile_bp
 from nutrition_ai import nutrition_ai_bp
 from meals import meals_bp
 from video_recipe import video_recipe_bp
+from recipes import recipes_bp
+
+
 
 def create_app():
     app = Flask(__name__)
@@ -35,6 +38,7 @@ def create_app():
     app.register_blueprint(nutrition_ai_bp)
     app.register_blueprint(meals_bp)
     app.register_blueprint(video_recipe_bp)
+    app.register_blueprint(recipes_bp)
 
 
     # Health check endpoint
