@@ -32,7 +32,7 @@ def update_profile(current_user):
     
     # Update allowed fields
     allowed_fields = [
-        'name', 'age', 'height', 'weight', 'goal',
+        'name', 'age', 'gender', 'height', 'weight', 'goal', 'activity_level',
         'allergies', 'health_conditions', 'dietary_preferences',
         'daily_calorie_target', 'daily_protein_target',
         'daily_carbs_target', 'daily_fat_target',
