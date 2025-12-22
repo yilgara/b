@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from config import Config
 from models import db, bcrypt
 from auth import auth_bp
+from profile import profile_bp
 
 def create_app():
     app = Flask(__name__)
@@ -27,6 +28,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(auth_bp)
+    app.register_blueprint(profile_bp)
 
     # Health check endpoint
     @app.route("/api/health", methods=["GET"])
