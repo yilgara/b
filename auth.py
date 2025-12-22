@@ -203,3 +203,22 @@ def logout(current_user):
     """Logout user (client should discard tokens)"""
     # In a more robust implementation, you'd blacklist the token
     return jsonify({'message': 'Logged out successfully'}), 200
+
+
+
+
+
+@auth_bp.route('/delete-account', methods=['DELETE'])
+@token_required
+def delete_account(current_user):
+    """Permanently delete user account and all associated data"""
+    try:
+        # Delete user (cascade will delete profile and user_roles)
+        db.session.delete(current_user)
+        db.session.commit()
+        
+        return jsonify({'message': 'Account deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete account'}), 500
