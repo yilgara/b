@@ -180,3 +180,54 @@ class WaterLog(db.Model):
             'date': self.date.isoformat() if self.date else None,
             'amount_ml': self.amount_ml
         }
+
+
+class Recipe(db.Model):
+    __tablename__ = 'recipes'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    prep_time = db.Column(db.Integer, default=0)  # minutes
+    cook_time = db.Column(db.Integer, default=0)  # minutes
+    servings = db.Column(db.Integer, default=1)
+    difficulty = db.Column(db.String(20))  # Easy, Medium, Hard
+    ingredients = db.Column(db.JSON, default=list)  # [{name, amount}]
+    steps = db.Column(db.JSON, default=list)  # [step1, step2, ...]
+    equipment = db.Column(db.JSON, default=list)
+    tips = db.Column(db.JSON, default=list)
+    tags = db.Column(db.JSON, default=list)
+    calories_per_serving = db.Column(db.Integer, default=0)
+    protein_per_serving = db.Column(db.Float, default=0)
+    carbs_per_serving = db.Column(db.Float, default=0)
+    fat_per_serving = db.Column(db.Float, default=0)
+    image_url = db.Column(db.Text)
+    source_url = db.Column(db.Text)  # Original video URL
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'title': self.title,
+            'description': self.description,
+            'prepTime': self.prep_time,
+            'cookTime': self.cook_time,
+            'servings': self.servings,
+            'difficulty': self.difficulty,
+            'ingredients': self.ingredients or [],
+            'steps': self.steps or [],
+            'equipment': self.equipment or [],
+            'tips': self.tips or [],
+            'tags': self.tags or [],
+            'nutritionPerServing': {
+                'calories': self.calories_per_serving,
+                'protein': self.protein_per_serving,
+                'carbs': self.carbs_per_serving,
+                'fat': self.fat_per_serving
+            },
+            'imageUrl': self.image_url,
+            'sourceUrl': self.source_url,
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }
