@@ -6,6 +6,8 @@ from models import db, bcrypt
 from auth import auth_bp
 from profile import profile_bp
 from nutrition_ai import nutrition_ai_bp
+from meals import meals_bp
+
 
 def create_app():
     app = Flask(__name__)
@@ -31,6 +33,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)
     app.register_blueprint(nutrition_ai_bp)
+    app.register_blueprint(meals_bp)
 
 
     # Health check endpoint
