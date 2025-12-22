@@ -42,8 +42,7 @@ def create_app():
         }), 200
 
     # Create tables (safe for dev; remove in prod if using migrations)
-    with app.app_context():
-        db.create_all()
+ 
    
 
     return app
