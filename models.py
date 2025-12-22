@@ -43,9 +43,11 @@ class Profile(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
     name = db.Column(db.String(100))
     age = db.Column(db.Integer)
+    gender = db.Column(db.String(20))  # male, female, other
     height = db.Column(db.Float)  # cm
     weight = db.Column(db.Float)  # kg
     goal = db.Column(db.String(50))  # gain_muscle, lose_fat, maintain, etc.
+    activity_level = db.Column(db.String(20))  # sedentary, light, moderate, active, very_active
     allergies = db.Column(db.JSON, default=list)
     health_conditions = db.Column(db.JSON, default=list)
     dietary_preferences = db.Column(db.JSON, default=list)
@@ -65,9 +67,11 @@ class Profile(db.Model):
             'user_id': self.user_id,
             'name': self.name,
             'age': self.age,
+            'gender': self.gender,
             'height': self.height,
             'weight': self.weight,
             'goal': self.goal,
+            'activity_level': self.activity_level,
             'allergies': self.allergies or [],
             'health_conditions': self.health_conditions or [],
             'dietary_preferences': self.dietary_preferences or [],
