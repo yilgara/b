@@ -129,35 +129,111 @@ def delete_meal(current_user, meal_id):
 @cross_origin()
 @token_required
 def get_meal_history(current_user):
-    """Get meal history for past days"""
+    """Get aggregated meal history stats for past days"""
     days = request.args.get('days', 30, type=int)
     start_date = date.today() - timedelta(days=days)
     
-    meals = Meal.query.filter(
+    # Use SQL aggregation instead of fetching all meals
+    from sqlalchemy import func
+    
+    # Get daily aggregates
+    daily_stats = db.session.query(
+        Meal.date,
+        func.count(Meal.id).label('meal_count'),
+        func.sum(Meal.total_calories).label('total_calories'),
+        func.sum(Meal.total_protein).label('total_protein'),
+        func.sum(Meal.total_carbs).label('total_carbs'),
+        func.sum(Meal.total_fat).label('total_fat')
+    ).filter(
         Meal.user_id == current_user.id,
         Meal.date >= start_date
-    ).order_by(Meal.date.desc(), Meal.created_at.desc()).all()
+    ).group_by(Meal.date).order_by(Meal.date.desc()).all()
     
-    # Group by date
-    history = {}
-    for meal in meals:
-        date_str = meal.date.isoformat()
-        if date_str not in history:
-            history[date_str] = {
-                'date': date_str,
-                'meals': [],
-                'totals': {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0}
+    # Build chart data and calculate stats
+    chart_data = []
+    total_calories = 0
+    total_protein = 0
+    total_carbs = 0
+    total_fat = 0
+    total_meals = 0
+    days_with_data = 0
+    best_protein_day = None
+    best_protein_value = 0
+    
+    for stat in daily_stats:
+        day_calories = stat.total_calories or 0
+        day_protein = stat.total_protein or 0
+        day_carbs = stat.total_carbs or 0
+        day_fat = stat.total_fat or 0
+        day_meals = stat.meal_count or 0
+        
+        chart_data.append({
+            'date': stat.date.isoformat(),
+            'calories': int(day_calories),
+            'protein': int(day_protein),
+            'carbs': int(day_carbs),
+            'fat': int(day_fat),
+            'meals': int(day_meals)
+        })
+        
+        total_calories += day_calories
+        total_protein += day_protein
+        total_carbs += day_carbs
+        total_fat += day_fat
+        total_meals += day_meals
+        
+        if day_meals > 0:
+            days_with_data += 1
+            
+        if day_protein > best_protein_value:
+            best_protein_value = day_protein
+            best_protein_day = {
+                'date': stat.date.isoformat(),
+                'calories': int(day_calories),
+                'protein': int(day_protein),
+                'carbs': int(day_carbs),
+                'fat': int(day_fat)
             }
-        history[date_str]['meals'].append(meal.to_dict())
-        history[date_str]['totals']['calories'] += meal.total_calories or 0
-        history[date_str]['totals']['protein'] += meal.total_protein or 0
-        history[date_str]['totals']['carbs'] += meal.total_carbs or 0
-        history[date_str]['totals']['fat'] += meal.total_fat or 0
     
-    # Convert to sorted list
-    history_list = sorted(history.values(), key=lambda x: x['date'], reverse=True)
+    # Calculate trend (compare first half vs second half)
+    trend = 0
+    if len(chart_data) > 1:
+        midpoint = len(chart_data) // 2
+        first_half = chart_data[:midpoint]
+        second_half = chart_data[midpoint:]
+        
+        first_half_avg = sum(d['calories'] for d in first_half) / len(first_half) if first_half else 0
+        second_half_avg = sum(d['calories'] for d in second_half) / len(second_half) if second_half else 0
+        
+        if second_half_avg > 0:
+            trend = round(((first_half_avg - second_half_avg) / second_half_avg) * 100)
     
-    return jsonify({'history': history_list}), 200
+    # Calculate streak (consecutive days with meals from most recent)
+    streak = 0
+    sorted_chart_data = sorted(chart_data, key=lambda x: x['date'], reverse=True)
+    for day in sorted_chart_data:
+        if day['meals'] > 0:
+            streak += 1
+        else:
+            break
+    
+    # Calculate averages
+    avg_divisor = days_with_data if days_with_data > 0 else 1
+    
+    return jsonify({
+        'chartData': sorted(chart_data, key=lambda x: x['date']),  # Ascending for charts
+        'stats': {
+            'avgCalories': round(total_calories / avg_divisor),
+            'avgProtein': round(total_protein / avg_divisor),
+            'avgCarbs': round(total_carbs / avg_divisor),
+            'avgFat': round(total_fat / avg_divisor),
+            'totalMeals': total_meals,
+            'daysWithData': days_with_data,
+            'trend': trend,
+            'streak': streak,
+            'bestDay': best_protein_day
+        }
+    }), 200
 
 
 @meals_bp.route('/api/water', methods=['POST'])
