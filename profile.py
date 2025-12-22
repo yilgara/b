@@ -71,9 +71,11 @@ def complete_onboarding(current_user):
     # Set all onboarding data at once
     profile.name = data.get('name', profile.name)
     profile.age = data.get('age', profile.age)
+    profile.gender = data.get('gender', profile.gender)
     profile.height = data.get('height', profile.height)
     profile.weight = data.get('weight', profile.weight)
     profile.goal = data.get('goal', profile.goal)
+    profile.activity_level = data.get('activity_level', profile.activity_level)
     profile.allergies = data.get('allergies', profile.allergies or [])
     profile.health_conditions = data.get('health_conditions', profile.health_conditions or [])
     profile.dietary_preferences = data.get('dietary_preferences', profile.dietary_preferences or [])
