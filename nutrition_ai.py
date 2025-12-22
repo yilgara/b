@@ -3,7 +3,7 @@ from auth import token_required
 from models import db, Profile
 import os
 import json
-import google.generativeai as genai
+from google import genai
 
 nutrition_ai_bp = Blueprint('nutrition_ai', __name__, url_prefix='/api/nutrition')
 
@@ -13,8 +13,7 @@ def get_gemini_client():
     api_key = os.environ.get('GEMINI_API_KEY')
     if not api_key:
         raise ValueError("GEMINI_API_KEY not configured")
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')
+    return genai.Client(api_key=api_key)
 
 
 @nutrition_ai_bp.route('/estimate', methods=['POST'])
@@ -77,8 +76,11 @@ Consider the user's goal when calculating:
 Use the Mifflin-St Jeor equation as a base for BMR calculation, then adjust for activity level and goals."""
 
     try:
-        model = get_gemini_client()
-        response = model.generate_content(prompt)
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
         
         # Parse the response
         response_text = response.text.strip()
@@ -107,7 +109,8 @@ Use the Mifflin-St Jeor equation as a base for BMR calculation, then adjust for 
                 'daily_carbs_target': int(nutrition_data['daily_carbs_target']),
                 'daily_fat_target': int(nutrition_data['daily_fat_target']),
                 'explanation': nutrition_data.get('explanation', '')
-            }
+            },
+            'method': 'ai'
         }), 200
         
     except json.JSONDecodeError as e:
@@ -116,7 +119,7 @@ Use the Mifflin-St Jeor equation as a base for BMR calculation, then adjust for 
         return jsonify({
             'success': True,
             'nutrition': calculate_fallback_nutrition(age, gender, height, weight, goal, activity_level),
-            'fallback': True
+            'method': 'fallback'
         }), 200
     except Exception as e:
         print(f"Gemini API error: {e}")
@@ -124,7 +127,7 @@ Use the Mifflin-St Jeor equation as a base for BMR calculation, then adjust for 
         return jsonify({
             'success': True,
             'nutrition': calculate_fallback_nutrition(age, gender, height, weight, goal, activity_level),
-            'fallback': True
+            'method': 'fallback'
         }), 200
 
 
