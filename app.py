@@ -5,6 +5,7 @@ from config import Config
 from models import db, bcrypt
 from auth import auth_bp
 from profile import profile_bp
+from nutrition_ai import nutrition_ai_bp
 
 def create_app():
     app = Flask(__name__)
@@ -29,6 +30,8 @@ def create_app():
     # Register blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)
+    app.register_blueprint(nutrition_ai_bp)
+
 
     # Health check endpoint
     @app.route("/api/health", methods=["GET"])
@@ -39,6 +42,8 @@ def create_app():
         }), 200
 
     # Create tables (safe for dev; remove in prod if using migrations)
+    with app.app_context():
+        db.create_all()
    
 
     return app
