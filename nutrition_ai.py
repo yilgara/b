@@ -22,14 +22,9 @@ def estimate_nutrition(current_user):
     """
     Use Gemini AI to estimate daily nutritional targets based on user profile
     """
-    print("=== Nutrition estimate endpoint called ===")
-    print(f"User: {current_user.email if current_user else 'Unknown'}")
-    
     data = request.get_json()
-    print(f"Request data: {data}")
-    
+
     if not data:
-        print("ERROR: No data provided")
         return jsonify({'error': 'No data provided'}), 400
     
     # Extract profile data
@@ -81,22 +76,17 @@ Consider the user's goal when calculating:
 Use the Mifflin-St Jeor equation as a base for BMR calculation, then adjust for activity level and goals."""
 
     try:
-        print("Attempting to initialize Gemini client...")
-        api_key = os.environ.get('GEMINI_API_KEY')
-        print(f"GEMINI_API_KEY exists: {bool(api_key)}")
-        
         client = get_gemini_client()
-        print("Gemini client initialized, making API call...")
         
         response = client.models.generate_content(
             model='gemini-flash-latest',
             contents=prompt
         )
-        print("Gemini API call successful!")
+
         
         # Parse the response
         response_text = response.text.strip()
-        print(f"Response text: {response_text[:200]}...")
+       
         
         # Clean up response if it has markdown code blocks
         if response_text.startswith('```'):
