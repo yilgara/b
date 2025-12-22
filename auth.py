@@ -26,14 +26,16 @@ def validate_password(password):
 
 def generate_tokens(user_id):
     """Generate access and refresh tokens"""
+    user_id_str = str(user_id)
+    
     access_token = jwt.encode({
-        'user_id': user_id,
+        'user_id': user_id_str,
         'type': 'access',
         'exp': datetime.utcnow() + Config.JWT_ACCESS_TOKEN_EXPIRES
     }, Config.JWT_SECRET_KEY, algorithm='HS256')
     
     refresh_token = jwt.encode({
-        'user_id': user_id,
+        'user_id': user_id_str,
         'type': 'refresh',
         'exp': datetime.utcnow() + Config.JWT_REFRESH_TOKEN_EXPIRES
     }, Config.JWT_SECRET_KEY, algorithm='HS256')
