@@ -9,7 +9,7 @@ from nutrition_ai import nutrition_ai_bp
 from meals import meals_bp
 from video_recipe import video_recipe_bp
 from recipes import recipes_bp
-
+from food_analysis import food_analysis_bp
 
 
 def create_app():
@@ -39,6 +39,7 @@ def create_app():
     app.register_blueprint(meals_bp)
     app.register_blueprint(video_recipe_bp)
     app.register_blueprint(recipes_bp)
+    app.register_blueprint(food_analysis_bp)
 
 
     # Health check endpoint
