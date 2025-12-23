@@ -144,7 +144,7 @@ def extract_frames(video_path: str, interval_seconds: int = 2):
     cap.release()
     return frames
 
-def analyze_video_direct(client, video_path: str, model_name: str = 'gemini-2.0-flash') -> dict:
+def analyze_video_direct(client, video_path: str, model_name: str = 'gemini-flash-latest') -> dict:
     """Analyze video directly by uploading to Gemini"""
     mime_type, _ = mimetypes.guess_type(video_path)
     if mime_type is None:
@@ -201,7 +201,7 @@ Be specific about ingredients and measurements. Estimate nutrition based on visi
     
     return parse_recipe_response(response.text)
 
-def analyze_frames(client, frames: list, model_name: str = 'gemini-2.0-flash') -> dict:
+def analyze_frames(client, frames: list, model_name: str = 'gemini-flash-latest') -> dict:
     """Analyze extracted frames with Gemini"""
     prompt = f"""Analyze these {len(frames)} frames from a cooking video and extract a detailed recipe. Return the response in this exact JSON format:
 
