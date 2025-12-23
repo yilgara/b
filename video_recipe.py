@@ -106,84 +106,13 @@ def download_with_apify(url: str, output_path: str, platform: str) -> str:
         raise Exception(f"Apify download failed: {str(e)}")
 
 def download_video(url: str, output_path: str) -> str:
-    """Download video from URL using yt-dlp, with Apify fallback"""
+    """Download video from URL using Apify"""
     platform = detect_platform(url)
-    yt_dlp_error = None
     
-    # First try yt-dlp
-    try:
-        import yt_dlp
-        
-        # Enhanced options to bypass rate limits and work on servers
-        ydl_opts = {
-            'outtmpl': output_path,
-            'format': 'best[ext=mp4][filesize<50M]/best[ext=mp4]/best[filesize<50M]/best',
-            'quiet': True,
-            'no_warnings': True,
-            # User agent to appear as a regular browser
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Sec-Fetch-Mode': 'navigate',
-            },
-            # Retry and timeout settings
-            'retries': 3,
-            'fragment_retries': 3,
-            'socket_timeout': 30,
-            # Extractor arguments for YouTube
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web'],
-                    'skip': ['dash', 'hls'],
-                }
-            },
-            # Don't check certificates (helps on some servers)
-            'nocheckcertificate': True,
-            # Avoid geo-restrictions
-            'geo_bypass': True,
-            'geo_bypass_country': 'US',
-            # Sleep between requests to avoid rate limits
-            'sleep_interval': 1,
-            'max_sleep_interval': 3,
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        
-        # yt-dlp may add extension, find the actual file
-        if os.path.exists(output_path):
-            return output_path
-        # Check with common extensions
-        for ext in ['.mp4', '.webm', '.mkv']:
-            if os.path.exists(output_path + ext):
-                return output_path + ext
-        # Find any file in the directory
-        dir_path = os.path.dirname(output_path)
-        for f in os.listdir(dir_path):
-            if f.startswith(os.path.basename(output_path).replace('.mp4', '')):
-                return os.path.join(dir_path, f)
-        
-        return output_path
-        
-    except ImportError:
-        yt_dlp_error = "yt-dlp not installed"
-    except Exception as e:
-        yt_dlp_error = str(e)
-        print(f"yt-dlp failed: {yt_dlp_error}")
+    if platform not in ['youtube', 'instagram', 'tiktok']:
+        raise Exception("Unsupported platform. Only YouTube, Instagram, and TikTok are supported.")
     
-    # If yt-dlp failed and platform is supported, try Apify
-    if yt_dlp_error and platform in ['youtube', 'instagram', 'tiktok']:
-        print(f"Trying Apify fallback for {platform}...")
-        try:
-            return download_with_apify(url, output_path, platform)
-        except Exception as apify_error:
-            # Both failed, return combined error
-            raise Exception(f"yt-dlp: {yt_dlp_error} | Apify: {str(apify_error)}")
-    
-    # If yt-dlp failed and Apify not applicable
-    if yt_dlp_error:
-        raise Exception(f"Error downloading video: {yt_dlp_error}")
+    return download_with_apify(url, output_path, platform)
 
 def extract_frames(video_path: str, interval_seconds: int = 2):
     """Extract frames from video at specified interval"""
