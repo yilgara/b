@@ -30,89 +30,65 @@ def detect_platform(url: str) -> str:
         return 'tiktok'
     return 'unknown'
 
-def download_with_apify(url: str, output_path: str, platform: str) -> str:
-    """Download video using Apify as fallback"""
-    from apify_client import ApifyClient
-    
-    api_token = os.getenv('APIFY_API_TOKEN')
+def download_with_fastsaver(url: str, output_path: str) -> str:
+    """Download video using FastSaver API"""
+    api_token = os.getenv('FASTSAVER_API_TOKEN')
     if not api_token:
-        raise ValueError("APIFY_API_TOKEN not configured - cannot use Apify fallback")
+        raise ValueError("FASTSAVER_API_TOKEN not configured")
     
-    apify_client = ApifyClient(api_token)
-    
-    # Select the appropriate actor based on platform
-    actor_map = {
-        'youtube': 'apilabs/youtube-downloader',
-        'instagram': 'apilabs/instagram-downloader',
-        'tiktok': 'apilabs/tiktok-downloader',
-    }
-    
-    actor_id = actor_map.get(platform)
-    if not actor_id:
-        raise ValueError(f"Unsupported platform for Apify: {platform}")
-    
-    print(f"Using Apify actor: {actor_id} for {platform}")
-    
-    # Define the input for the actor
-    actor_input = {
-        "audioOnly": False,
-        "ffmpeg": True,
-        "proxy": {
-            "useApifyProxy": True,
-            "apifyProxyGroups": ["RESIDENTIAL"],
-        },
-        "url": url
-    }
+    print(f"Using FastSaver API for: {url}")
     
     try:
-        # Run the actor and wait for it to finish
-        actor_call = apify_client.actor(actor_id).call(run_input=actor_input, timeout_secs=120)
+        # Get video info from FastSaver API
+        response = requests.get(
+            "https://fastsaverapi.com/get-info",
+            params={"url": url, "token": api_token},
+            timeout=30
+        )
         
-        # Get the dataset from the run
-        dataset_id = actor_call.get('defaultDatasetId')
-        if not dataset_id:
-            raise ValueError("No dataset returned from Apify actor")
-        
-        dataset_client = apify_client.dataset(dataset_id)
-        items = dataset_client.list_items(limit=1, desc=True)
-        
-        if not items.items:
-            raise ValueError("No items in Apify dataset")
-        
-        # Get the download link
-        download_link = items.items[0].get('download_link') or items.items[0].get('downloadUrl') or items.items[0].get('url')
-        if not download_link:
-            raise ValueError("No download link found in Apify response")
-        
-        print(f"Apify download link: {download_link}")
-        
-        # Download the file
-        response = requests.get(download_link, timeout=60)
         if response.status_code != 200:
-            raise ValueError(f"Failed to download from Apify link: status {response.status_code}")
+            raise ValueError(f"FastSaver API returned status {response.status_code}")
+        
+        data = response.json()
+        
+        if data.get('error'):
+            raise ValueError(f"FastSaver API error: {data.get('message', 'Unknown error')}")
+        
+        download_url = data.get('download_url')
+        if not download_url:
+            raise ValueError("No download URL in FastSaver response")
+        
+        print(f"FastSaver download URL: {download_url}")
+        
+        # Download the video file
+        video_response = requests.get(download_url, timeout=120)
+        if video_response.status_code != 200:
+            raise ValueError(f"Failed to download video: status {video_response.status_code}")
         
         # Determine file extension
-        content_type = response.headers.get('Content-Type', 'video/mp4')
+        content_type = video_response.headers.get('Content-Type', 'video/mp4')
         extension = mimetypes.guess_extension(content_type.split(';')[0]) or '.mp4'
         
         final_path = output_path + extension
         with open(final_path, 'wb') as f:
-            f.write(response.content)
+            f.write(video_response.content)
         
-        print(f"Downloaded video via Apify: {final_path}")
+        print(f"Downloaded video via FastSaver: {final_path}")
         return final_path
         
+    except requests.exceptions.Timeout:
+        raise Exception("FastSaver API request timed out")
     except Exception as e:
-        raise Exception(f"Apify download failed: {str(e)}")
+        raise Exception(f"FastSaver download failed: {str(e)}")
 
 def download_video(url: str, output_path: str) -> str:
-    """Download video from URL using Apify"""
+    """Download video from URL using FastSaver API"""
     platform = detect_platform(url)
     
     if platform not in ['youtube', 'instagram', 'tiktok']:
         raise Exception("Unsupported platform. Only YouTube, Instagram, and TikTok are supported.")
     
-    return download_with_apify(url, output_path, platform)
+    return download_with_fastsaver(url, output_path)
 
 def extract_frames(video_path: str, interval_seconds: int = 2):
     """Extract frames from video at specified interval"""
