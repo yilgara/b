@@ -87,7 +87,7 @@ Respond with ONLY the JSON object, no other text."""
 
         # Call Gemini with the image
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-flash-latest',
             contents=[
                 {
                     'inline_data': {
