@@ -30,6 +30,31 @@ def detect_platform(url: str) -> str:
         return 'tiktok'
     return 'unknown'
 
+def get_cookies_file():
+    """Get cookies file path from environment variable"""
+    cookies_content = os.getenv('YTDLP_COOKIES')
+    if not cookies_content:
+        return None
+    
+    # Write cookies to temp file
+    cookies_path = os.path.join(tempfile.gettempdir(), 'ytdlp_cookies.txt')
+    try:
+        # Decode if base64 encoded
+        try:
+            decoded = base64.b64decode(cookies_content).decode('utf-8')
+            cookies_content = decoded
+        except:
+            pass  # Not base64, use as-is
+        
+        with open(cookies_path, 'w') as f:
+            f.write(cookies_content)
+        
+        print(f"Cookies file created: {cookies_path}")
+        return cookies_path
+    except Exception as e:
+        print(f"Failed to create cookies file: {e}")
+        return None
+
 def download_with_ytdlp(url: str, output_path: str) -> str:
     """Download video using yt-dlp library directly"""
     import yt_dlp
@@ -39,10 +64,17 @@ def download_with_ytdlp(url: str, output_path: str) -> str:
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
         'outtmpl': output_path + '.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,  # Show output for debugging
+        'no_warnings': False,
         'merge_output_format': 'mp4',
+        'extractor_args': {'instagram': {'skip': ['dash']}},  # Skip dash for Instagram
     }
+    
+    # Add cookies if available
+    cookies_path = get_cookies_file()
+    if cookies_path:
+        ydl_opts['cookiefile'] = cookies_path
+        print("Using cookies for authentication")
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
