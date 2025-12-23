@@ -12,3 +12,4 @@ google-genai
 yt-dlp
 opencv-python-headless
 Pillow
+apify-client
