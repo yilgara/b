@@ -6,6 +6,8 @@ import time
 import mimetypes
 import io
 import base64
+import requests
+import re
 from google import genai
 from PIL import Image
 
@@ -17,16 +19,133 @@ def get_gemini_client():
         raise ValueError("GEMINI_API_KEY not configured")
     return genai.Client(api_key=api_key)
 
+def detect_platform(url: str) -> str:
+    """Detect which platform the URL is from"""
+    url_lower = url.lower()
+    if 'youtube.com' in url_lower or 'youtu.be' in url_lower:
+        return 'youtube'
+    elif 'instagram.com' in url_lower:
+        return 'instagram'
+    elif 'tiktok.com' in url_lower:
+        return 'tiktok'
+    return 'unknown'
+
+def download_with_apify(url: str, output_path: str, platform: str) -> str:
+    """Download video using Apify as fallback"""
+    from apify_client import ApifyClient
+    
+    api_token = os.getenv('APIFY_API_TOKEN')
+    if not api_token:
+        raise ValueError("APIFY_API_TOKEN not configured - cannot use Apify fallback")
+    
+    apify_client = ApifyClient(api_token)
+    
+    # Select the appropriate actor based on platform
+    actor_map = {
+        'youtube': 'apilabs/youtube-downloader',
+        'instagram': 'apilabs/instagram-downloader',
+        'tiktok': 'apilabs/tiktok-downloader',
+    }
+    
+    actor_id = actor_map.get(platform)
+    if not actor_id:
+        raise ValueError(f"Unsupported platform for Apify: {platform}")
+    
+    print(f"Using Apify actor: {actor_id} for {platform}")
+    
+    # Define the input for the actor
+    actor_input = {
+        "audioOnly": False,
+        "ffmpeg": True,
+        "proxy": {
+            "useApifyProxy": True,
+            "apifyProxyGroups": ["RESIDENTIAL"],
+        },
+        "url": url
+    }
+    
+    try:
+        # Run the actor and wait for it to finish
+        actor_call = apify_client.actor(actor_id).call(run_input=actor_input, timeout_secs=120)
+        
+        # Get the dataset from the run
+        dataset_id = actor_call.get('defaultDatasetId')
+        if not dataset_id:
+            raise ValueError("No dataset returned from Apify actor")
+        
+        dataset_client = apify_client.dataset(dataset_id)
+        items = dataset_client.list_items(limit=1, desc=True)
+        
+        if not items.items:
+            raise ValueError("No items in Apify dataset")
+        
+        # Get the download link
+        download_link = items.items[0].get('download_link') or items.items[0].get('downloadUrl') or items.items[0].get('url')
+        if not download_link:
+            raise ValueError("No download link found in Apify response")
+        
+        print(f"Apify download link: {download_link}")
+        
+        # Download the file
+        response = requests.get(download_link, timeout=60)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to download from Apify link: status {response.status_code}")
+        
+        # Determine file extension
+        content_type = response.headers.get('Content-Type', 'video/mp4')
+        extension = mimetypes.guess_extension(content_type.split(';')[0]) or '.mp4'
+        
+        final_path = output_path + extension
+        with open(final_path, 'wb') as f:
+            f.write(response.content)
+        
+        print(f"Downloaded video via Apify: {final_path}")
+        return final_path
+        
+    except Exception as e:
+        raise Exception(f"Apify download failed: {str(e)}")
+
 def download_video(url: str, output_path: str) -> str:
-    """Download video from URL using yt-dlp"""
+    """Download video from URL using yt-dlp, with Apify fallback"""
+    platform = detect_platform(url)
+    yt_dlp_error = None
+    
+    # First try yt-dlp
     try:
         import yt_dlp
         
+        # Enhanced options to bypass rate limits and work on servers
         ydl_opts = {
             'outtmpl': output_path,
-            'format': 'best[ext=mp4]/best',
+            'format': 'best[ext=mp4][filesize<50M]/best[ext=mp4]/best[filesize<50M]/best',
             'quiet': True,
             'no_warnings': True,
+            # User agent to appear as a regular browser
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Sec-Fetch-Mode': 'navigate',
+            },
+            # Retry and timeout settings
+            'retries': 3,
+            'fragment_retries': 3,
+            'socket_timeout': 30,
+            # Extractor arguments for YouTube
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                    'skip': ['dash', 'hls'],
+                }
+            },
+            # Don't check certificates (helps on some servers)
+            'nocheckcertificate': True,
+            # Avoid geo-restrictions
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
+            # Sleep between requests to avoid rate limits
+            'sleep_interval': 1,
+            'max_sleep_interval': 3,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -46,10 +165,25 @@ def download_video(url: str, output_path: str) -> str:
                 return os.path.join(dir_path, f)
         
         return output_path
+        
     except ImportError:
-        raise ImportError("yt-dlp not installed")
+        yt_dlp_error = "yt-dlp not installed"
     except Exception as e:
-        raise Exception(f"Error downloading video: {str(e)}")
+        yt_dlp_error = str(e)
+        print(f"yt-dlp failed: {yt_dlp_error}")
+    
+    # If yt-dlp failed and platform is supported, try Apify
+    if yt_dlp_error and platform in ['youtube', 'instagram', 'tiktok']:
+        print(f"Trying Apify fallback for {platform}...")
+        try:
+            return download_with_apify(url, output_path, platform)
+        except Exception as apify_error:
+            # Both failed, return combined error
+            raise Exception(f"yt-dlp: {yt_dlp_error} | Apify: {str(apify_error)}")
+    
+    # If yt-dlp failed and Apify not applicable
+    if yt_dlp_error:
+        raise Exception(f"Error downloading video: {yt_dlp_error}")
 
 def extract_frames(video_path: str, interval_seconds: int = 2):
     """Extract frames from video at specified interval"""
