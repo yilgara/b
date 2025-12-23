@@ -30,65 +30,51 @@ def detect_platform(url: str) -> str:
         return 'tiktok'
     return 'unknown'
 
-def download_with_fastsaver(url: str, output_path: str) -> str:
-    """Download video using FastSaver API"""
-    api_token = os.getenv('FASTSAVER_API_TOKEN')
-    if not api_token:
-        raise ValueError("FASTSAVER_API_TOKEN not configured")
+def download_with_ytdlp(url: str, output_path: str) -> str:
+    """Download video using yt-dlp library directly"""
+    import yt_dlp
     
-    print(f"Using FastSaver API for: {url}")
+    print(f"Downloading with yt-dlp: {url}")
+    
+    ydl_opts = {
+        'format': 'best[ext=mp4]/best',
+        'outtmpl': output_path + '.%(ext)s',
+        'quiet': True,
+        'no_warnings': True,
+        'merge_output_format': 'mp4',
+    }
     
     try:
-        # Get video info from FastSaver API
-        response = requests.get(
-            "https://fastsaverapi.com/get-info",
-            params={"url": url, "token": api_token},
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            raise ValueError(f"FastSaver API returned status {response.status_code}")
-        
-        data = response.json()
-        
-        if data.get('error'):
-            raise ValueError(f"FastSaver API error: {data.get('message', 'Unknown error')}")
-        
-        download_url = data.get('download_url')
-        if not download_url:
-            raise ValueError("No download URL in FastSaver response")
-        
-        print(f"FastSaver download URL: {download_url}")
-        
-        # Download the video file
-        video_response = requests.get(download_url, timeout=120)
-        if video_response.status_code != 200:
-            raise ValueError(f"Failed to download video: status {video_response.status_code}")
-        
-        # Determine file extension
-        content_type = video_response.headers.get('Content-Type', 'video/mp4')
-        extension = mimetypes.guess_extension(content_type.split(';')[0]) or '.mp4'
-        
-        final_path = output_path + extension
-        with open(final_path, 'wb') as f:
-            f.write(video_response.content)
-        
-        print(f"Downloaded video via FastSaver: {final_path}")
-        return final_path
-        
-    except requests.exceptions.Timeout:
-        raise Exception("FastSaver API request timed out")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            ext = info.get('ext', 'mp4')
+            final_path = f"{output_path}.{ext}"
+            
+            # Check if file exists
+            if os.path.exists(final_path):
+                print(f"Downloaded video: {final_path}")
+                return final_path
+            
+            # Try common extensions
+            for ext in ['mp4', 'webm', 'mkv']:
+                check_path = f"{output_path}.{ext}"
+                if os.path.exists(check_path):
+                    print(f"Downloaded video: {check_path}")
+                    return check_path
+            
+            raise Exception("Download completed but file not found")
+            
     except Exception as e:
-        raise Exception(f"FastSaver download failed: {str(e)}")
+        raise Exception(f"yt-dlp download failed: {str(e)}")
 
 def download_video(url: str, output_path: str) -> str:
-    """Download video from URL using FastSaver API"""
+    """Download video from URL using yt-dlp"""
     platform = detect_platform(url)
     
     if platform not in ['youtube', 'instagram', 'tiktok']:
         raise Exception("Unsupported platform. Only YouTube, Instagram, and TikTok are supported.")
     
-    return download_with_fastsaver(url, output_path)
+    return download_with_ytdlp(url, output_path)
 
 def extract_frames(video_path: str, interval_seconds: int = 2):
     """Extract frames from video at specified interval"""
