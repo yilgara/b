@@ -3,10 +3,17 @@ from models import db, User, CommunityPost, PostLike, PostComment, UserFollow, R
 from auth import token_required
 from sqlalchemy import desc
 import traceback
+import base64
+import uuid
+import os
 
 community_bp = Blueprint('community', __name__, url_prefix='/api/community')
 
+UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads')
+POST_IMAGES_DIR = os.path.join(UPLOAD_DIR, 'post_images')
+BASE_URL = os.environ.get('BASE_URL', 'https://b-5bhi.onrender.com')
 
+os.makedirs(POST_IMAGES_DIR, exist_ok=True)
 # ============================================
 # ROUTES - POSTS
 # ============================================
@@ -488,3 +495,46 @@ def remove_follower(current_user, follower_id):
     db.session.commit()
     
     return jsonify({'message': 'Follower removed'}), 200
+
+
+
+@community_bp.route('/upload-image', methods=['POST'])
+@token_required
+def upload_post_image(current_user):
+    """Upload an image for a community post"""
+    try:
+        data = request.get_json(silent=True) or {}
+        image_data = data.get('image')
+        extension = data.get('extension', 'jpg')
+        
+        if not image_data:
+            return jsonify({'error': 'No image provided'}), 400
+        
+        # Validate extension
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+        if extension.lower() not in allowed_extensions:
+            extension = 'jpg'
+        
+        # Decode base64
+        try:
+            image_bytes = base64.b64decode(image_data)
+        except Exception:
+            return jsonify({'error': 'Invalid image data'}), 400
+        
+        # Generate unique filename
+        filename = f"{current_user.id}_{uuid.uuid4().hex}.{extension}"
+        filepath = os.path.join(POST_IMAGES_DIR, filename)
+        
+        # Save file
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+        
+        # Return URL
+        image_url = f"{BASE_URL}/uploads/post_images/{filename}"
+        
+        return jsonify({'url': image_url}), 200
+        
+    except Exception as e:
+        print(f"[UPLOAD IMAGE ERROR] {str(e)}")
+        print(f"[UPLOAD IMAGE ERROR] Traceback:\n{traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
