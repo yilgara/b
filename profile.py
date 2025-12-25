@@ -1,17 +1,13 @@
 from flask import Blueprint, request, jsonify
 from auth import token_required
 from models import db, Profile
-import os
 import uuid
-import base64
+from cloudinary_helper import upload_image
 
 profile_bp = Blueprint('profile', __name__, url_prefix='/api/profile')
 
-UPLOAD_BASE = os.environ.get('UPLOAD_DIR', 'uploads')
-UPLOAD_DIR = os.path.join(UPLOAD_BASE, 'profile_pictures')
-BASE_URL = os.environ.get('BASE_URL', 'https://b-5bhi.onrender.com')
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 
 @profile_bp.route('', methods=['GET'])
 @token_required
@@ -109,7 +105,7 @@ def complete_onboarding(current_user):
 @profile_bp.route('/picture', methods=['POST'])
 @token_required
 def upload_profile_picture(current_user):
-    """Upload a profile picture (accepts base64 image data)"""
+    """Upload a profile picture to Cloudinary"""
     data = request.get_json()
     
     if not data or 'image' not in data:
@@ -117,43 +113,22 @@ def upload_profile_picture(current_user):
     
     image_data = data['image']
     
-    # Check if it's a base64 data URL
-    if image_data.startswith('data:image'):
-        try:
-            # Parse the data URL
-            header, encoded = image_data.split(',', 1)
-            # Get the file extension from the header
-            if 'png' in header:
-                ext = 'png'
-            elif 'gif' in header:
-                ext = 'gif'
-            elif 'webp' in header:
-                ext = 'webp'
-            else:
-                ext = 'jpg'
-            
-            # Decode the base64 data
-            image_bytes = base64.b64decode(encoded)
-            
-            # Generate unique filename
-            filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}.{ext}"
-            
-            # Ensure upload directory exists
-            os.makedirs(UPLOAD_DIR, exist_ok=True)
-            
-            # Save the file
-            filepath = os.path.join(UPLOAD_DIR, filename)
-            with open(filepath, 'wb') as f:
-                f.write(image_bytes)
-            
-            # Generate the URL
-            picture_url = f"{BASE_URL}/uploads/profile_pictures/{filename}"
-            
-        except Exception as e:
-            return jsonify({'error': f'Failed to process image: {str(e)}'}), 400
+    # Check if it's already a URL (not base64)
+    if not image_data.startswith('data:image') and not image_data.startswith('/'):
+        if image_data.startswith('http'):
+            # It's already a URL, just save it
+            picture_url = image_data
+        else:
+            return jsonify({'error': 'Invalid image data'}), 400
     else:
-        # Assume it's already a URL
-        picture_url = image_data
+        # Upload to Cloudinary
+        public_id = f"profile_{current_user.id}_{uuid.uuid4().hex[:8]}"
+        result = upload_image(image_data, folder="nutriai/profile_pictures", public_id=public_id)
+        
+        if 'error' in result:
+            return jsonify({'error': f'Failed to upload image: {result["error"]}'}), 400
+        
+        picture_url = result['url']
     
     # Update the profile
     profile = current_user.profile
