@@ -204,7 +204,8 @@ class Recipe(db.Model):
     source_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+
     def to_dict(self):
         nutrition = self.nutrition_per_serving or {"calories": 0, "protein": 0, "carbs": 0, "fat": 0}
         return {
@@ -226,8 +227,12 @@ class Recipe(db.Model):
                 'carbs': nutrition.get('carbs', 0),
                 'fat': nutrition.get('fat', 0)
             },
-
-
+            'imageUrl': self.image_url,
+            'sourceUrl': self.source_url,
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    
 
 class Chat(db.Model):
     __tablename__ = 'chats'
