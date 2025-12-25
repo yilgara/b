@@ -1,0 +1,362 @@
+from flask import Blueprint, request, jsonify
+from models import db, User, CommunityPost, PostLike, PostComment, UserFollow
+from auth import token_required
+from sqlalchemy import desc
+
+community_bp = Blueprint('community', __name__, url_prefix='/api/community')
+
+
+# ============================================
+# ROUTES - POSTS
+# ============================================
+
+@community_bp.route('/posts', methods=['GET'])
+@token_required
+def get_posts(current_user):
+    """Get all community posts (paginated, sorted by recent or trending)"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    sort = request.args.get('sort', 'recent')  # 'recent' or 'trending'
+    
+    query = CommunityPost.query
+    
+    if sort == 'trending':
+        query = query.order_by(desc(CommunityPost.likes_count), desc(CommunityPost.created_at))
+    else:
+        query = query.order_by(desc(CommunityPost.created_at))
+    
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    posts = [post.to_dict(current_user.id) for post in pagination.items]
+    
+    return jsonify({
+        'posts': posts,
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'current_page': page
+    }), 200
+
+
+@community_bp.route('/posts/my', methods=['GET'])
+@token_required
+def get_my_posts(current_user):
+    """Get current user's posts"""
+    posts = CommunityPost.query.filter_by(user_id=current_user.id)\
+        .order_by(desc(CommunityPost.created_at)).all()
+    return jsonify([post.to_dict(current_user.id) for post in posts]), 200
+
+
+@community_bp.route('/posts/<post_id>', methods=['GET'])
+@token_required
+def get_post(current_user, post_id):
+    """Get a single post by ID"""
+    post = CommunityPost.query.get(post_id)
+    if not post:
+        return jsonify({'error': 'Post not found'}), 404
+    return jsonify(post.to_dict(current_user.id)), 200
+
+
+@community_bp.route('/posts', methods=['POST'])
+@token_required
+def create_post(current_user):
+    """Create a new community post"""
+    data = request.get_json()
+    
+    if not data.get('title'):
+        return jsonify({'error': 'Title is required'}), 400
+    
+    post = CommunityPost(
+        user_id=current_user.id,
+        title=data.get('title'),
+        description=data.get('description', ''),
+        image_url=data.get('imageUrl', ''),
+        calories=data.get('nutrition', {}).get('calories', 0),
+        protein=data.get('nutrition', {}).get('protein', 0),
+        carbs=data.get('nutrition', {}).get('carbs', 0),
+        fat=data.get('nutrition', {}).get('fat', 0),
+        ingredients=data.get('ingredients', []),
+        steps=data.get('steps', [])
+    )
+    
+    db.session.add(post)
+    db.session.commit()
+    
+    return jsonify(post.to_dict(current_user.id)), 201
+
+
+@community_bp.route('/posts/<post_id>', methods=['PUT'])
+@token_required
+def update_post(current_user, post_id):
+    """Update a post (only owner can update)"""
+    post = CommunityPost.query.get(post_id)
+    
+    if not post:
+        return jsonify({'error': 'Post not found'}), 404
+    
+    if post.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.get_json()
+    
+    if 'title' in data:
+        post.title = data['title']
+    if 'description' in data:
+        post.description = data['description']
+    if 'imageUrl' in data:
+        post.image_url = data['imageUrl']
+    if 'nutrition' in data:
+        post.calories = data['nutrition'].get('calories', post.calories)
+        post.protein = data['nutrition'].get('protein', post.protein)
+        post.carbs = data['nutrition'].get('carbs', post.carbs)
+        post.fat = data['nutrition'].get('fat', post.fat)
+    if 'ingredients' in data:
+        post.ingredients = data['ingredients']
+    if 'steps' in data:
+        post.steps = data['steps']
+    
+    db.session.commit()
+    return jsonify(post.to_dict(current_user.id)), 200
+
+
+@community_bp.route('/posts/<post_id>', methods=['DELETE'])
+@token_required
+def delete_post(current_user, post_id):
+    """Delete a post (only owner can delete)"""
+    post = CommunityPost.query.get(post_id)
+    
+    if not post:
+        return jsonify({'error': 'Post not found'}), 404
+    
+    if post.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    db.session.delete(post)
+    db.session.commit()
+    
+    return jsonify({'message': 'Post deleted'}), 200
+
+
+# ============================================
+# ROUTES - LIKES
+# ============================================
+
+@community_bp.route('/posts/<post_id>/like', methods=['POST'])
+@token_required
+def toggle_like(current_user, post_id):
+    """Toggle like on a post"""
+    post = CommunityPost.query.get(post_id)
+    
+    if not post:
+        return jsonify({'error': 'Post not found'}), 404
+    
+    existing_like = PostLike.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+    
+    if existing_like:
+        # Unlike
+        db.session.delete(existing_like)
+        post.likes_count = max(0, post.likes_count - 1)
+        liked = False
+    else:
+        # Like
+        like = PostLike(user_id=current_user.id, post_id=post_id)
+        db.session.add(like)
+        post.likes_count += 1
+        liked = True
+    
+    db.session.commit()
+    
+    return jsonify({
+        'liked': liked,
+        'likesCount': post.likes_count
+    }), 200
+
+
+# ============================================
+# ROUTES - COMMENTS
+# ============================================
+
+@community_bp.route('/posts/<post_id>/comments', methods=['GET'])
+@token_required
+def get_comments(current_user, post_id):
+    """Get all comments for a post"""
+    post = CommunityPost.query.get(post_id)
+    
+    if not post:
+        return jsonify({'error': 'Post not found'}), 404
+    
+    comments = PostComment.query.filter_by(post_id=post_id)\
+        .order_by(PostComment.created_at).all()
+    
+    return jsonify([comment.to_dict() for comment in comments]), 200
+
+
+@community_bp.route('/posts/<post_id>/comments', methods=['POST'])
+@token_required
+def add_comment(current_user, post_id):
+    """Add a comment to a post"""
+    post = CommunityPost.query.get(post_id)
+    
+    if not post:
+        return jsonify({'error': 'Post not found'}), 404
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({'error': 'Comment content is required'}), 400
+    
+    comment = PostComment(
+        user_id=current_user.id,
+        post_id=post_id,
+        content=content
+    )
+    
+    db.session.add(comment)
+    post.comments_count += 1
+    db.session.commit()
+    
+    return jsonify(comment.to_dict()), 201
+
+
+@community_bp.route('/comments/<comment_id>', methods=['DELETE'])
+@token_required
+def delete_comment(current_user, comment_id):
+    """Delete a comment (only owner can delete)"""
+    comment = PostComment.query.get(comment_id)
+    
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    
+    if comment.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    post = comment.post
+    db.session.delete(comment)
+    post.comments_count = max(0, post.comments_count - 1)
+    db.session.commit()
+    
+    return jsonify({'message': 'Comment deleted'}), 200
+
+
+# ============================================
+# ROUTES - USER PROFILE (for community)
+# ============================================
+
+@community_bp.route('/users/<user_id>', methods=['GET'])
+@token_required
+def get_user_profile(current_user, user_id):
+    """Get a user's public profile for community"""
+    user = User.query.get(user_id)
+    if not user or not user.profile:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Get user's post count
+    posts_count = CommunityPost.query.filter_by(user_id=user_id).count()
+    
+    # Check if current user is following
+    is_following = UserFollow.query.filter_by(
+        follower_id=current_user.id, 
+        following_id=user_id
+    ).first() is not None
+    
+    # Get follower/following counts
+    followers_count = UserFollow.query.filter_by(following_id=user_id).count()
+    following_count = UserFollow.query.filter_by(follower_id=user_id).count()
+    
+    return jsonify({
+        'id': user.id,
+        'name': user.profile.name,
+        'profilePicture': user.profile.profile_picture,
+        'goal': user.profile.goal,
+        'postsCount': posts_count,
+        'followersCount': followers_count,
+        'followingCount': following_count,
+        'isFollowing': is_following
+    }), 200
+
+
+@community_bp.route('/users/<user_id>/posts', methods=['GET'])
+@token_required
+def get_user_posts(current_user, user_id):
+    """Get all posts by a specific user"""
+    posts = CommunityPost.query.filter_by(user_id=user_id)\
+        .order_by(desc(CommunityPost.created_at)).all()
+    return jsonify([post.to_dict(current_user.id) for post in posts]), 200
+
+
+# ============================================
+# ROUTES - FOLLOWS
+# ============================================
+
+@community_bp.route('/users/<user_id>/follow', methods=['POST'])
+@token_required
+def toggle_follow(current_user, user_id):
+    """Toggle follow on a user"""
+    if current_user.id == user_id:
+        return jsonify({'error': 'Cannot follow yourself'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id, 
+        following_id=user_id
+    ).first()
+    
+    if existing_follow:
+        # Unfollow
+        db.session.delete(existing_follow)
+        following = False
+    else:
+        # Follow
+        follow = UserFollow(follower_id=current_user.id, following_id=user_id)
+        db.session.add(follow)
+        following = True
+    
+    db.session.commit()
+    
+    # Get updated counts
+    followers_count = UserFollow.query.filter_by(following_id=user_id).count()
+    
+    return jsonify({
+        'following': following,
+        'followersCount': followers_count
+    }), 200
+
+
+@community_bp.route('/users/<user_id>/followers', methods=['GET'])
+@token_required
+def get_followers(current_user, user_id):
+    """Get list of followers for a user"""
+    follows = UserFollow.query.filter_by(following_id=user_id).all()
+    followers = []
+    
+    for follow in follows:
+        user = User.query.get(follow.follower_id)
+        if user and user.profile:
+            followers.append({
+                'id': user.id,
+                'name': user.profile.name,
+                'profilePicture': user.profile.profile_picture
+            })
+    
+    return jsonify(followers), 200
+
+
+@community_bp.route('/users/<user_id>/following', methods=['GET'])
+@token_required
+def get_following(current_user, user_id):
+    """Get list of users that a user is following"""
+    follows = UserFollow.query.filter_by(follower_id=user_id).all()
+    following = []
+    
+    for follow in follows:
+        user = User.query.get(follow.following_id)
+        if user and user.profile:
+            following.append({
+                'id': user.id,
+                'name': user.profile.name,
+                'profilePicture': user.profile.profile_picture
+            })
+    
+    return jsonify(following), 200
