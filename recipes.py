@@ -34,7 +34,7 @@ def create_recipe(current_user):
         return jsonify({'error': 'Recipe title is required'}), 400
     
     try:
-        nutrition = data.get('nutritionPerServing', {})
+        nutrition = data.get('nutritionPerServing', {"calories": 0, "protein": 0, "carbs": 0, "fat": 0})
         
         recipe = Recipe(
             user_id=current_user.id,
@@ -49,10 +49,7 @@ def create_recipe(current_user):
             equipment=data.get('equipment', []),
             tips=data.get('tips', []),
             tags=data.get('tags', []),
-            calories_per_serving=nutrition.get('calories', 0),
-            protein_per_serving=nutrition.get('protein', 0),
-            carbs_per_serving=nutrition.get('carbs', 0),
-            fat_per_serving=nutrition.get('fat', 0),
+            nutrition_per_serving=nutrition,
             image_url=data.get('imageUrl'),
             source_url=data.get('sourceUrl')
         )
@@ -128,11 +125,7 @@ def update_recipe(current_user, recipe_id):
         if 'tags' in data:
             recipe.tags = data['tags']
         if 'nutritionPerServing' in data:
-            nutrition = data['nutritionPerServing']
-            recipe.calories_per_serving = nutrition.get('calories', recipe.calories_per_serving)
-            recipe.protein_per_serving = nutrition.get('protein', recipe.protein_per_serving)
-            recipe.carbs_per_serving = nutrition.get('carbs', recipe.carbs_per_serving)
-            recipe.fat_per_serving = nutrition.get('fat', recipe.fat_per_serving)
+            recipe.nutrition_per_serving = data['nutritionPerServing']
         if 'imageUrl' in data:
             recipe.image_url = data['imageUrl']
         
