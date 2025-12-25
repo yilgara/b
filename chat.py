@@ -1,13 +1,15 @@
 from flask import Blueprint, request, jsonify
 import os
-import requests
+from google import genai
+from google.genai import types
 from models import db, Chat, ChatMessage, Profile
 from auth import token_required
 
 chat_bp = Blueprint('chat', __name__, url_prefix='/api/chat')
 
+# Initialize Gemini client
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 def get_user_context(user_id):
@@ -51,9 +53,8 @@ def get_user_context(user_id):
     return "\n".join(context_parts) if context_parts else "No detailed profile available."
 
 
-def build_gemini_prompt(user_context, chat_history, user_message):
-    """Build the full prompt for Gemini with system context and chat history."""
-    
+def build_chat_history(chat_history, user_context):
+    """Build chat history for Gemini."""
     system_prompt = f"""You are NutriAI, a friendly and knowledgeable nutrition and fitness coach assistant. 
 You help users with meal planning, nutrition advice, workout suggestions, and health-related questions.
 Always consider the user's profile information when giving advice.
@@ -69,76 +70,61 @@ INSTRUCTIONS:
 - Keep responses concise but helpful
 """
     
-    # Build conversation history
-    contents = []
+    # Build history with system context as first exchange
+    history = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(f"[SYSTEM CONTEXT - DO NOT REFERENCE DIRECTLY]\n{system_prompt}")]
+        ),
+        types.Content(
+            role="model",
+            parts=[types.Part.from_text("I understand. I'm NutriAI, your nutrition and fitness coach. I'll provide personalized advice based on your profile. How can I help you today?")]
+        )
+    ]
     
-    # Add system context as first user message (Gemini doesn't have system role)
-    contents.append({
-        "role": "user",
-        "parts": [{"text": f"[SYSTEM CONTEXT - DO NOT REFERENCE DIRECTLY]\n{system_prompt}"}]
-    })
-    contents.append({
-        "role": "model", 
-        "parts": [{"text": "I understand. I'm NutriAI, your nutrition and fitness coach. I'll provide personalized advice based on your profile. How can I help you today?"}]
-    })
-    
-    # Add chat history
+    # Add existing chat history
     for msg in chat_history:
         role = "user" if msg.role == "user" else "model"
-        contents.append({
-            "role": role,
-            "parts": [{"text": msg.content}]
-        })
+        history.append(
+            types.Content(
+                role=role,
+                parts=[types.Part.from_text(msg.content)]
+            )
+        )
     
-    # Add current user message
-    contents.append({
-        "role": "user",
-        "parts": [{"text": user_message}]
-    })
-    
-    return contents
+    return history
 
 
-def call_gemini_api(contents):
-    """Call the Gemini API and return the response."""
-    if not GEMINI_API_KEY:
+def call_gemini_api(chat_history, user_message):
+    """Call the Gemini API using the genai library and return the response."""
+    if not client:
         raise ValueError("GEMINI_API_KEY not configured")
     
-    headers = {
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "contents": contents,
-        "generationConfig": {
-            "temperature": 0.7,
-            "topK": 40,
-            "topP": 0.95,
-            "maxOutputTokens": 1024
-        },
-        "safetySettings": [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
-        ]
-    }
-    
-    response = requests.post(
-        f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
-        headers=headers,
-        json=payload
+    # Create chat with history
+    chat = client.chats.create(
+        model="gemini-2.0-flash",
+        history=chat_history,
+        config=types.GenerateContentConfig(
+            temperature=0.7,
+            top_k=40,
+            top_p=0.95,
+            max_output_tokens=1024,
+            safety_settings=[
+                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_MEDIUM_AND_ABOVE"),
+                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_MEDIUM_AND_ABOVE"),
+                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_MEDIUM_AND_ABOVE"),
+                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_MEDIUM_AND_ABOVE")
+            ]
+        )
     )
     
-    if response.status_code != 200:
-        raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
+    # Send message and get response
+    response = chat.send_message(user_message)
     
-    data = response.json()
-    
-    if 'candidates' not in data or not data['candidates']:
+    if not response.text:
         raise Exception("No response from Gemini API")
     
-    return data['candidates'][0]['content']['parts'][0]['text']
+    return response.text
 
 
 # ============ API ENDPOINTS ============
@@ -239,15 +225,15 @@ def send_message(current_user, chat_id):
         user_context = get_user_context(current_user.id)
         
         # Get existing chat history
-        chat_history = ChatMessage.query.filter_by(chat_id=chat_id)\
+        chat_history_db = ChatMessage.query.filter_by(chat_id=chat_id)\
             .order_by(ChatMessage.created_at)\
             .all()
         
-        # Build prompt with context and history
-        contents = build_gemini_prompt(user_context, chat_history, user_message)
+        # Build history for Gemini
+        gemini_history = build_chat_history(chat_history_db, user_context)
         
         # Call Gemini API
-        ai_response = call_gemini_api(contents)
+        ai_response = call_gemini_api(gemini_history, user_message)
         
         # Save user message
         user_msg = ChatMessage(
@@ -266,7 +252,7 @@ def send_message(current_user, chat_id):
         db.session.add(assistant_msg)
         
         # Update chat title if it's the first message
-        if len(chat_history) == 0:
+        if len(chat_history_db) == 0:
             # Use first ~50 chars of user message as title
             chat.title = user_message[:50] + ('...' if len(user_message) > 50 else '')
         
