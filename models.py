@@ -281,15 +281,10 @@ class CommunityPost(db.Model):
     
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    title = db.Column(db.String(255), nullable=False)
+    image_url = db.Column(db.Text, nullable=False)
+    title = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    image_url = db.Column(db.Text)
-    calories = db.Column(db.Integer, default=0)
-    protein = db.Column(db.Float, default=0)
-    carbs = db.Column(db.Float, default=0)
-    fat = db.Column(db.Float, default=0)
-    ingredients = db.Column(db.JSON, default=list)
-    steps = db.Column(db.JSON, default=list)
+    recipe_id = db.Column(db.String(36), db.ForeignKey('recipes.id', ondelete='SET NULL'), nullable=True, index=True)
     likes_count = db.Column(db.Integer, default=0)
     comments_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -297,14 +292,30 @@ class CommunityPost(db.Model):
     
     # Relationships
     user = db.relationship('User', backref=db.backref('community_posts', lazy='dynamic'))
+    recipe = db.relationship('Recipe', backref=db.backref('community_posts', lazy='dynamic'))
     likes = db.relationship('PostLike', backref='post', cascade='all, delete-orphan')
     comments = db.relationship('PostComment', backref='post', cascade='all, delete-orphan', order_by='PostComment.created_at')
+    
     
     def to_dict(self, current_user_id=None):
         user_profile = self.user.profile
         is_liked = False
         if current_user_id:
             is_liked = PostLike.query.filter_by(user_id=current_user_id, post_id=self.id).first() is not None
+        
+        # Get nutrition from linked recipe if available
+        nutrition = {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0}
+        ingredients = []
+        steps = []
+        if self.recipe:
+            nutrition = {
+                'calories': self.recipe.calories_per_serving or 0,
+                'protein': self.recipe.protein_per_serving or 0,
+                'carbs': self.recipe.carbs_per_serving or 0,
+                'fat': self.recipe.fat_per_serving or 0
+            }
+            ingredients = self.recipe.ingredients or []
+            steps = self.recipe.steps or []
         
         return {
             'id': str(self.id),
@@ -314,20 +325,15 @@ class CommunityPost(db.Model):
             'title': self.title,
             'description': self.description,
             'imageUrl': self.image_url,
-            'nutrition': {
-                'calories': self.calories,
-                'protein': self.protein,
-                'carbs': self.carbs,
-                'fat': self.fat
-            },
-            'ingredients': self.ingredients or [],
-            'steps': self.steps or [],
+            'recipeId': self.recipe_id,
+            'nutrition': nutrition,
+            'ingredients': ingredients,
+            'steps': steps,
             'likes': self.likes_count,
             'comments': self.comments_count,
             'isLiked': is_liked,
             'createdAt': self.created_at.isoformat() if self.created_at else None
         }
-
 
 class PostLike(db.Model):
     __tablename__ = 'post_likes'
