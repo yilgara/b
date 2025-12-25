@@ -196,53 +196,7 @@ def create_post(current_user):
         return jsonify({'error': err_str}), 500
 
 
-@community_bp.route('/posts', methods=['POST'])
-@token_required
-def create_post(current_user):
-    """Create a new community post"""
-    try:
-        data = request.get_json(silent=True) or {}
-        print(f"[CREATE POST] Received data: {data}")
-        print(f"[CREATE POST] User ID: {current_user.id}")
 
-        title = (data.get('title') or '').strip()
-        image_url = (data.get('imageUrl') or '').strip()
-        description = (data.get('description') or '').strip()
-
-        recipe_id = data.get('recipeId')
-        if isinstance(recipe_id, str):
-            recipe_id = recipe_id.strip() or None
-
-        print(f"[CREATE POST] Parsed - title: {title}, image_url: {image_url}, recipe_id: {recipe_id}")
-
-        if not title:
-            return jsonify({'error': 'Title is required'}), 400
-        if not image_url:
-            return jsonify({'error': 'Image is required'}), 400
-
-        post = CommunityPost(
-            user_id=current_user.id,
-            title=title,
-            description=description,
-            image_url=image_url,
-            recipe_id=recipe_id
-        )
-        print(f"[CREATE POST] Created post object")
-
-        db.session.add(post)
-        print("[CREATE POST] Added to session, committing...")
-        db.session.commit()
-        print(f"[CREATE POST] Committed! Post ID: {post.id}")
-
-        result = post.to_dict(current_user.id)
-        print(f"[CREATE POST] Success: {result}")
-        return jsonify(result), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"[CREATE POST ERROR] {str(e)}")
-        print(f"[CREATE POST ERROR] Traceback:\n{traceback.format_exc()}")
-        return jsonify({'error': str(e)}), 500
 
 
 
