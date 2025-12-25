@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_migrate import Migrate
 from config import Config
@@ -12,6 +12,9 @@ from recipes import recipes_bp
 from food_analysis import food_analysis_bp
 from chat import chat_bp
 from community import community_bp
+import os
+
+UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads/profile_pictures')
 
 def create_app():
     app = Flask(__name__)
@@ -52,6 +55,10 @@ def create_app():
             "status": "healthy",
             "message": "NutriAI API is running"
         }), 200
+
+    @app.route('/uploads/profile_pictures/<filename>')
+    def serve_profile_picture(filename):
+        return send_from_directory(UPLOAD_DIR, filename)
 
     # Create tables (safe for dev; remove in prod if using migrations)
  
