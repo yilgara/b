@@ -106,6 +106,95 @@ def get_post(current_user, post_id):
         return jsonify({'error': 'Post not found'}), 404
     return jsonify(post.to_dict(current_user.id)), 200
 
+@community_bp.route('/posts', methods=['POST'])
+@token_required
+def create_post(current_user):
+    """Create a new community post with optional inline recipe creation"""
+    try:
+        data = request.get_json(silent=True) or {}
+        print(f"[CREATE POST] Received data: {data}")
+        print(f"[CREATE POST] User ID: {current_user.id}")
+
+        title = (data.get('title') or '').strip()
+        image_url = (data.get('imageUrl') or '').strip()
+        description = (data.get('description') or '').strip()
+        recipe_id = data.get('recipeId')
+        
+        # Inline recipe data (optional)
+        recipe_data = data.get('recipe')
+
+        print(f"[CREATE POST] Parsed - title: {title}, image_url: {image_url}, recipe_id: {recipe_id}")
+
+        if not title:
+            return jsonify({'error': 'Title is required'}), 400
+        if not image_url:
+            return jsonify({'error': 'Image is required'}), 400
+
+        # If recipe_data is provided, create a new recipe first
+        if recipe_data and not recipe_id:
+            print(f"[CREATE POST] Creating inline recipe: {recipe_data}")
+            
+            # Build nutrition object
+            nutrition = {
+                'calories': recipe_data.get('calories', 0),
+                'protein': recipe_data.get('protein', 0),
+                'carbs': recipe_data.get('carbs', 0),
+                'fat': recipe_data.get('fat', 0)
+            }
+            
+            new_recipe = Recipe(
+                user_id=current_user.id,
+                title=recipe_data.get('title') or title,
+                description=recipe_data.get('description') or description,
+                prep_time=recipe_data.get('prepTime', 0),
+                cook_time=recipe_data.get('cookTime', 0),
+                servings=recipe_data.get('servings', 1),
+                difficulty=recipe_data.get('difficulty'),
+                ingredients=recipe_data.get('ingredients', []),
+                steps=recipe_data.get('steps', []),
+                equipment=recipe_data.get('equipment', []),
+                tips=recipe_data.get('tips', []),
+                tags=recipe_data.get('tags', []),
+                nutrition_per_serving=nutrition,
+                image_url=image_url
+            )
+            
+            db.session.add(new_recipe)
+            db.session.flush()  # Get the ID without committing
+            recipe_id = new_recipe.id
+            print(f"[CREATE POST] Created recipe with ID: {recipe_id}")
+
+        if isinstance(recipe_id, str):
+            recipe_id = recipe_id.strip() or None
+
+        post = CommunityPost(
+            user_id=current_user.id,
+            title=title,
+            description=description,
+            image_url=image_url,
+            recipe_id=recipe_id
+        )
+        print(f"[CREATE POST] Created post object")
+
+        db.session.add(post)
+        print("[CREATE POST] Added to session, committing...")
+        db.session.commit()
+        print(f"[CREATE POST] Committed! Post ID: {post.id}")
+
+        result = post.to_dict(current_user.id)
+        print(f"[CREATE POST] Success: {result}")
+        return jsonify(result), 201
+
+    except Exception as e:
+        db.session.rollback()
+
+        # Friendly diagnostic for common local dev setup issue:
+        err_str = str(e)
+
+        print(f"[CREATE POST ERROR] {err_str}")
+        print(f"[CREATE POST ERROR] Traceback:\n{traceback.format_exc()}")
+        return jsonify({'error': err_str}), 500
+
 
 @community_bp.route('/posts', methods=['POST'])
 @token_required
