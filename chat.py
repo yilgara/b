@@ -102,7 +102,7 @@ def call_gemini_api(chat_history, user_message):
     
     # Create chat with history
     chat = client.chats.create(
-        model="gemini-2.0-flash",
+        model="gemini-flash-latest",
         history=chat_history,
         config=types.GenerateContentConfig(
             temperature=0.7,
