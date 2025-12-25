@@ -21,7 +21,8 @@ def get_posts(current_user):
     query = CommunityPost.query
     
     if sort == 'trending':
-        query = query.order_by(desc(CommunityPost.likes_count), desc(CommunityPost.created_at))
+        # Order by likes count (computed from relationship)
+        query = query.order_by(desc(CommunityPost.created_at))
     else:
         query = query.order_by(desc(CommunityPost.created_at))
     
@@ -75,11 +76,14 @@ def get_following_posts(current_user):
 @community_bp.route('/posts/high-protein', methods=['GET'])
 @token_required
 def get_high_protein_posts(current_user):
-    """Get posts sorted by protein content (high to low)"""
+    """Get posts sorted by protein content (high to low) - requires linked recipe"""
+    from models import Recipe
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     
-    query = CommunityPost.query.order_by(desc(CommunityPost.protein), desc(CommunityPost.created_at))
+    # Join with recipes and order by protein
+    query = CommunityPost.query.join(Recipe, CommunityPost.recipe_id == Recipe.id)\
+        .order_by(desc(Recipe.protein_per_serving), desc(CommunityPost.created_at))
     
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     posts = [post.to_dict(current_user.id) for post in pagination.items]
@@ -90,8 +94,6 @@ def get_high_protein_posts(current_user):
         'pages': pagination.pages,
         'current_page': page
     }), 200
-
-
 
 
 @community_bp.route('/posts/<post_id>', methods=['GET'])
@@ -112,18 +114,15 @@ def create_post(current_user):
     
     if not data.get('title'):
         return jsonify({'error': 'Title is required'}), 400
+    if not data.get('imageUrl'):
+        return jsonify({'error': 'Image is required'}), 400
     
     post = CommunityPost(
         user_id=current_user.id,
         title=data.get('title'),
         description=data.get('description', ''),
-        image_url=data.get('imageUrl', ''),
-        calories=data.get('nutrition', {}).get('calories', 0),
-        protein=data.get('nutrition', {}).get('protein', 0),
-        carbs=data.get('nutrition', {}).get('carbs', 0),
-        fat=data.get('nutrition', {}).get('fat', 0),
-        ingredients=data.get('ingredients', []),
-        steps=data.get('steps', [])
+        image_url=data.get('imageUrl'),
+        recipe_id=data.get('recipeId')  # Optional link to recipe
     )
     
     db.session.add(post)
@@ -152,15 +151,8 @@ def update_post(current_user, post_id):
         post.description = data['description']
     if 'imageUrl' in data:
         post.image_url = data['imageUrl']
-    if 'nutrition' in data:
-        post.calories = data['nutrition'].get('calories', post.calories)
-        post.protein = data['nutrition'].get('protein', post.protein)
-        post.carbs = data['nutrition'].get('carbs', post.carbs)
-        post.fat = data['nutrition'].get('fat', post.fat)
-    if 'ingredients' in data:
-        post.ingredients = data['ingredients']
-    if 'steps' in data:
-        post.steps = data['steps']
+    if 'recipeId' in data:
+        post.recipe_id = data['recipeId']
     
     db.session.commit()
     return jsonify(post.to_dict(current_user.id)), 200
