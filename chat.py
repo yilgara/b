@@ -74,11 +74,11 @@ INSTRUCTIONS:
     history = [
         types.Content(
             role="user",
-            parts=[types.Part.from_text(f"[SYSTEM CONTEXT - DO NOT REFERENCE DIRECTLY]\n{system_prompt}")]
+            parts=[types.Part.from_text(text=f"[SYSTEM CONTEXT - DO NOT REFERENCE DIRECTLY]\n{system_prompt}")]
         ),
         types.Content(
             role="model",
-            parts=[types.Part.from_text("I understand. I'm NutriAI, your nutrition and fitness coach. I'll provide personalized advice based on your profile. How can I help you today?")]
+            parts=[types.Part.from_text(text="I understand. I'm NutriAI, your nutrition and fitness coach. I'll provide personalized advice based on your profile. How can I help you today?")]
         )
     ]
     
@@ -88,7 +88,7 @@ INSTRUCTIONS:
         history.append(
             types.Content(
                 role=role,
-                parts=[types.Part.from_text(msg.content)]
+                parts=[types.Part.from_text(text=msg.content)]
             )
         )
     
