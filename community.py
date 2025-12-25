@@ -110,24 +110,33 @@ def get_post(current_user, post_id):
 @token_required
 def create_post(current_user):
     """Create a new community post"""
-    data = request.get_json()
-    
-    if not data.get('title'):
+    data = request.get_json(silent=True) or {}
+
+    title = (data.get('title') or '').strip()
+    image_url = (data.get('imageUrl') or '').strip()
+    description = (data.get('description') or '').strip()
+
+    recipe_id = data.get('recipeId')
+    # Normalize empty strings to None to avoid FK/UUID issues
+    if isinstance(recipe_id, str):
+        recipe_id = recipe_id.strip() or None
+
+    if not title:
         return jsonify({'error': 'Title is required'}), 400
-    if not data.get('imageUrl'):
+    if not image_url:
         return jsonify({'error': 'Image is required'}), 400
-    
+
     post = CommunityPost(
         user_id=current_user.id,
-        title=data.get('title'),
-        description=data.get('description', ''),
-        image_url=data.get('imageUrl'),
-        recipe_id=data.get('recipeId')  # Optional link to recipe
+        title=title,
+        description=description,
+        image_url=image_url,
+        recipe_id=recipe_id  # Optional link to recipe
     )
-    
+
     db.session.add(post)
     db.session.commit()
-    
+
     return jsonify(post.to_dict(current_user.id)), 201
 
 
