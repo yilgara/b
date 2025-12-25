@@ -14,7 +14,14 @@ from chat import chat_bp
 from community import community_bp
 import os
 
-UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads/profile_pictures')
+UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads')
+PROFILE_PICTURES_DIR = os.path.join(UPLOAD_DIR, 'profile_pictures')
+POST_IMAGES_DIR = os.path.join(UPLOAD_DIR, 'post_images')
+
+# Ensure directories exist
+os.makedirs(PROFILE_PICTURES_DIR, exist_ok=True)
+os.makedirs(POST_IMAGES_DIR, exist_ok=True)
+
 
 def create_app():
     app = Flask(__name__)
@@ -58,7 +65,12 @@ def create_app():
 
     @app.route('/uploads/profile_pictures/<filename>')
     def serve_profile_picture(filename):
-        return send_from_directory(UPLOAD_DIR, filename)
+        return send_from_directory(PROFILE_PICTURES_DIR, filename)
+    
+    @app.route('/uploads/post_images/<filename>')
+    def serve_post_image(filename):
+        return send_from_directory(POST_IMAGES_DIR, filename)
+    
 
     # Create tables (safe for dev; remove in prod if using migrations)
  
