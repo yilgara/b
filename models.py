@@ -275,3 +275,100 @@ class ChatMessage(db.Model):
             'content': self.content,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+        
+class CommunityPost(db.Model):
+    __tablename__ = 'community_posts'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    image_url = db.Column(db.Text)
+    calories = db.Column(db.Integer, default=0)
+    protein = db.Column(db.Float, default=0)
+    carbs = db.Column(db.Float, default=0)
+    fat = db.Column(db.Float, default=0)
+    ingredients = db.Column(db.JSON, default=list)
+    steps = db.Column(db.JSON, default=list)
+    likes_count = db.Column(db.Integer, default=0)
+    comments_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', backref=db.backref('community_posts', lazy='dynamic'))
+    likes = db.relationship('PostLike', backref='post', cascade='all, delete-orphan')
+    comments = db.relationship('PostComment', backref='post', cascade='all, delete-orphan', order_by='PostComment.created_at')
+    
+    def to_dict(self, current_user_id=None):
+        user_profile = self.user.profile
+        is_liked = False
+        if current_user_id:
+            is_liked = PostLike.query.filter_by(user_id=current_user_id, post_id=self.id).first() is not None
+        
+        return {
+            'id': str(self.id),
+            'userId': str(self.user_id),
+            'userName': user_profile.name if user_profile else 'Anonymous',
+            'userAvatar': user_profile.profile_picture if user_profile else None,
+            'title': self.title,
+            'description': self.description,
+            'imageUrl': self.image_url,
+            'nutrition': {
+                'calories': self.calories,
+                'protein': self.protein,
+                'carbs': self.carbs,
+                'fat': self.fat
+            },
+            'ingredients': self.ingredients or [],
+            'steps': self.steps or [],
+            'likes': self.likes_count,
+            'comments': self.comments_count,
+            'isLiked': is_liked,
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class PostLike(db.Model):
+    __tablename__ = 'post_likes'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    post_id = db.Column(UUID(as_uuid=True), db.ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_user_post_like'),)
+
+
+class PostComment(db.Model):
+    __tablename__ = 'post_comments'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    post_id = db.Column(UUID(as_uuid=True), db.ForeignKey('community_posts.id', ondelete='CASCADE'), nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('comments', lazy='dynamic'))
+    
+    def to_dict(self):
+        user_profile = self.user.profile if self.user else None
+        return {
+            'id': str(self.id),
+            'userId': str(self.user_id),
+            'userName': user_profile.name if user_profile else 'Anonymous',
+            'userAvatar': user_profile.profile_picture if user_profile else None,
+            'content': self.content,
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class UserFollow(db.Model):
+    __tablename__ = 'user_follows'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    follower_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    following_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('follower_id', 'following_id', name='unique_user_follow'),)
