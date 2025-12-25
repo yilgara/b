@@ -189,28 +189,27 @@ class Recipe(db.Model):
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
-    prep_time = db.Column(db.Integer, default=0)  # minutes
-    cook_time = db.Column(db.Integer, default=0)  # minutes
+    description = db.Column(db.Text)
+    prep_time = db.Column(db.Integer, default=0)
+    cook_time = db.Column(db.Integer, default=0)
     servings = db.Column(db.Integer, default=1)
-    difficulty = db.Column(db.String(20))  # Easy, Medium, Hard
-    ingredients = db.Column(db.JSON, default=list)  # [{name, amount}]
-    steps = db.Column(db.JSON, default=list)  # [step1, step2, ...]
-    equipment = db.Column(db.JSON, default=list)
-    tips = db.Column(db.JSON, default=list)
-    tags = db.Column(db.JSON, default=list)
-    calories_per_serving = db.Column(db.Integer, default=0)
-    protein_per_serving = db.Column(db.Float, default=0)
-    carbs_per_serving = db.Column(db.Float, default=0)
-    fat_per_serving = db.Column(db.Float, default=0)
+    difficulty = db.Column(db.String(50))
+    ingredients = db.Column(db.JSON, default=list)
+    steps = db.Column(db.ARRAY(db.Text), default=list)
+    equipment = db.Column(db.ARRAY(db.Text), default=list)
+    tips = db.Column(db.ARRAY(db.Text), default=list)
+    tags = db.Column(db.ARRAY(db.Text), default=list)
+    nutrition_per_serving = db.Column(db.JSON, default=lambda: {"calories": 0, "protein": 0, "carbs": 0, "fat": 0})
     image_url = db.Column(db.Text)
-    source_url = db.Column(db.Text)  # Original video URL
+    source_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def to_dict(self):
+        nutrition = self.nutrition_per_serving or {"calories": 0, "protein": 0, "carbs": 0, "fat": 0}
         return {
             'id': str(self.id),
-            'title': self.title,
+            'title': str(self.title),
             'description': self.description,
             'prepTime': self.prep_time,
             'cookTime': self.cook_time,
@@ -222,15 +221,11 @@ class Recipe(db.Model):
             'tips': self.tips or [],
             'tags': self.tags or [],
             'nutritionPerServing': {
-                'calories': self.calories_per_serving,
-                'protein': self.protein_per_serving,
-                'carbs': self.carbs_per_serving,
-                'fat': self.fat_per_serving
+                'calories': nutrition.get('calories', 0),
+                'protein': nutrition.get('protein', 0),
+                'carbs': nutrition.get('carbs', 0),
+                'fat': nutrition.get('fat', 0)
             },
-            'imageUrl': self.image_url,
-            'sourceUrl': self.source_url,
-            'createdAt': self.created_at.isoformat() if self.created_at else None
-        }
 
 
 
