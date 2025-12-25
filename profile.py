@@ -1,9 +1,14 @@
 from flask import Blueprint, request, jsonify
 from auth import token_required
 from models import db, Profile
+import os
+import uuid
+import base64
 
 profile_bp = Blueprint('profile', __name__, url_prefix='/api/profile')
 
+UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads/profile_pictures')
+BASE_URL = os.environ.get('BASE_URL', 'https://b-5bhi.onrender.com')
 
 @profile_bp.route('', methods=['GET'])
 @token_required
@@ -95,3 +100,72 @@ def complete_onboarding(current_user):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to complete onboarding'}), 500
+
+
+
+@profile_bp.route('/picture', methods=['POST'])
+@token_required
+def upload_profile_picture(current_user):
+    """Upload a profile picture (accepts base64 image data)"""
+    data = request.get_json()
+    
+    if not data or 'image' not in data:
+        return jsonify({'error': 'No image data provided'}), 400
+    
+    image_data = data['image']
+    
+    # Check if it's a base64 data URL
+    if image_data.startswith('data:image'):
+        try:
+            # Parse the data URL
+            header, encoded = image_data.split(',', 1)
+            # Get the file extension from the header
+            if 'png' in header:
+                ext = 'png'
+            elif 'gif' in header:
+                ext = 'gif'
+            elif 'webp' in header:
+                ext = 'webp'
+            else:
+                ext = 'jpg'
+            
+            # Decode the base64 data
+            image_bytes = base64.b64decode(encoded)
+            
+            # Generate unique filename
+            filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}.{ext}"
+            
+            # Ensure upload directory exists
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
+            
+            # Save the file
+            filepath = os.path.join(UPLOAD_DIR, filename)
+            with open(filepath, 'wb') as f:
+                f.write(image_bytes)
+            
+            # Generate the URL
+            picture_url = f"{BASE_URL}/uploads/profile_pictures/{filename}"
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to process image: {str(e)}'}), 400
+    else:
+        # Assume it's already a URL
+        picture_url = image_data
+    
+    # Update the profile
+    profile = current_user.profile
+    if not profile:
+        profile = Profile(user_id=current_user.id)
+        db.session.add(profile)
+    
+    profile.profile_picture = picture_url
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'message': 'Profile picture updated',
+            'profile_picture': picture_url
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to save profile picture'}), 500
