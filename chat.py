@@ -55,7 +55,7 @@ def get_user_context(user_id):
 
 def build_chat_history(chat_history, user_context):
     """Build chat history for Gemini."""
-    system_prompt = f"""You are NutriAI, a friendly and knowledgeable nutrition and fitness coach assistant. 
+    system_prompt = f"""You are calvex ai, a friendly and knowledgeable nutrition and fitness coach assistant. 
 You help users with meal planning, nutrition advice, workout suggestions, and health-related questions.
 Always consider the user's profile information when giving advice.
 
@@ -78,7 +78,7 @@ INSTRUCTIONS:
         ),
         types.Content(
             role="model",
-            parts=[types.Part.from_text(text="I understand. I'm NutriAI, your nutrition and fitness coach. I'll provide personalized advice based on your profile. How can I help you today?")]
+            parts=[types.Part.from_text(text="I understand. I'm calvex ai, your nutrition and fitness coach. I'll provide personalized advice based on your profile. How can I help you today?")]
         )
     ]
     
