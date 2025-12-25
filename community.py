@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, User, CommunityPost, PostLike, PostComment, UserFollow
+from models import db, User, CommunityPost, PostLike, PostComment, UserFollow, Recipe
 from auth import token_required
 from sqlalchemy import desc
 import traceback
@@ -78,7 +78,7 @@ def get_following_posts(current_user):
 @token_required
 def get_high_protein_posts(current_user):
     """Get posts sorted by protein content (high to low) - requires linked recipe"""
-    from models import Recipe
+
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     
