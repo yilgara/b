@@ -10,7 +10,7 @@ from meals import meals_bp
 from video_recipe import video_recipe_bp
 from recipes import recipes_bp
 from food_analysis import food_analysis_bp
-
+from chat import chat_bp
 
 def create_app():
     app = Flask(__name__)
@@ -40,6 +40,7 @@ def create_app():
     app.register_blueprint(video_recipe_bp)
     app.register_blueprint(recipes_bp)
     app.register_blueprint(food_analysis_bp)
+    app.register_blueprint(chat_bp)
 
 
     # Health check endpoint
