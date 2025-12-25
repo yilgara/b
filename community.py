@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from models import db, User, CommunityPost, PostLike, PostComment, UserFollow
 from auth import token_required
 from sqlalchemy import desc
+import traceback
 
 community_bp = Blueprint('community', __name__, url_prefix='/api/community')
 
@@ -110,34 +111,44 @@ def get_post(current_user, post_id):
 @token_required
 def create_post(current_user):
     """Create a new community post"""
-    data = request.get_json(silent=True) or {}
+    try:
+        data = request.get_json(silent=True) or {}
+        print(f"[CREATE POST] Received data: {data}")
+        print(f"[CREATE POST] User ID: {current_user.id}")
 
-    title = (data.get('title') or '').strip()
-    image_url = (data.get('imageUrl') or '').strip()
-    description = (data.get('description') or '').strip()
+        title = (data.get('title') or '').strip()
+        image_url = (data.get('imageUrl') or '').strip()
+        description = (data.get('description') or '').strip()
 
-    recipe_id = data.get('recipeId')
-    # Normalize empty strings to None to avoid FK/UUID issues
-    if isinstance(recipe_id, str):
-        recipe_id = recipe_id.strip() or None
+        recipe_id = data.get('recipeId')
+        if isinstance(recipe_id, str):
+            recipe_id = recipe_id.strip() or None
 
-    if not title:
-        return jsonify({'error': 'Title is required'}), 400
-    if not image_url:
-        return jsonify({'error': 'Image is required'}), 400
+        print(f"[CREATE POST] Parsed - title: {title}, image_url: {image_url}, recipe_id: {recipe_id}")
 
-    post = CommunityPost(
-        user_id=current_user.id,
-        title=title,
-        description=description,
-        image_url=image_url,
-        recipe_id=recipe_id  # Optional link to recipe
-    )
+        if not title:
+            return jsonify({'error': 'Title is required'}), 400
+        if not image_url:
+            return jsonify({'error': 'Image is required'}), 400
 
-    db.session.add(post)
-    db.session.commit()
+        post = CommunityPost(
+            user_id=current_user.id,
+            title=title,
+            description=description,
+            image_url=image_url,
+            recipe_id=recipe_id
+        )
+        print(f"[CREATE POST] Created post object")
 
-    return jsonify(post.to_dict(current_user.id)), 201
+        db.session.add(post)
+        print("[CREATE POST] Added to session, committing...")
+        db.session.commit()
+        print(f"[CREATE POST] Committed! Post ID: {post.id}")
+
+        result = post.to_dict(current_user.id)
+        print(f"[CREATE POST] Success: {result}")
+        return jsonify(result), 201
+
 
 
 @community_bp.route('/posts/<post_id>', methods=['PUT'])
