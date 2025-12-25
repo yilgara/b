@@ -231,3 +231,47 @@ class Recipe(db.Model):
             'sourceUrl': self.source_url,
             'createdAt': self.created_at.isoformat() if self.created_at else None
         }
+
+
+
+lass Chat(db.Model):
+    __tablename__ = 'chats'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    title = db.Column(db.String(255), default='New Chat')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    messages = db.relationship('ChatMessage', backref='chat', cascade='all, delete-orphan', order_by='ChatMessage.created_at')
+    
+    def to_dict(self, include_messages=False):
+        result = {
+            'id': str(self.id),
+            'user_id': str(self.user_id),
+            'title': self.title,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+        if include_messages:
+            result['messages'] = [msg.to_dict() for msg in self.messages]
+        return result
+
+
+class ChatMessage(db.Model):
+    __tablename__ = 'chat_messages'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chat_id = db.Column(UUID(as_uuid=True)), db.ForeignKey('chats.id', ondelete='CASCADE'), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)  # 'user' or 'assistant'
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'chat_id': str(self.chat_id),
+            'role': self.role,
+            'content': self.content,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
