@@ -7,8 +7,11 @@ import base64
 
 profile_bp = Blueprint('profile', __name__, url_prefix='/api/profile')
 
-UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads/profile_pictures')
+UPLOAD_BASE = os.environ.get('UPLOAD_DIR', 'uploads')
+UPLOAD_DIR = os.path.join(UPLOAD_BASE, 'profile_pictures')
 BASE_URL = os.environ.get('BASE_URL', 'https://b-5bhi.onrender.com')
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @profile_bp.route('', methods=['GET'])
 @token_required
