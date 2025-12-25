@@ -12,3 +12,4 @@ google-genai
 opencv-python-headless
 Pillow
 yt-dlp
+cloudinary==1.36.0
