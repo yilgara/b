@@ -45,6 +45,55 @@ def get_my_posts(current_user):
     return jsonify([post.to_dict(current_user.id) for post in posts]), 200
 
 
+@community_bp.route('/posts/following', methods=['GET'])
+@token_required
+def get_following_posts(current_user):
+    """Get posts from users that the current user follows"""
+    # Get list of user IDs that current user follows
+    following_ids = [f.following_id for f in UserFollow.query.filter_by(follower_id=current_user.id).all()]
+    
+    if not following_ids:
+        return jsonify({'posts': [], 'total': 0, 'pages': 0, 'current_page': 1}), 200
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    query = CommunityPost.query.filter(CommunityPost.user_id.in_(following_ids))\
+        .order_by(desc(CommunityPost.created_at))
+    
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    posts = [post.to_dict(current_user.id) for post in pagination.items]
+    
+    return jsonify({
+        'posts': posts,
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'current_page': page
+    }), 200
+
+
+@community_bp.route('/posts/high-protein', methods=['GET'])
+@token_required
+def get_high_protein_posts(current_user):
+    """Get posts sorted by protein content (high to low)"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    query = CommunityPost.query.order_by(desc(CommunityPost.protein), desc(CommunityPost.created_at))
+    
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    posts = [post.to_dict(current_user.id) for post in pagination.items]
+    
+    return jsonify({
+        'posts': posts,
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'current_page': page
+    }), 200
+
+
+
+
 @community_bp.route('/posts/<post_id>', methods=['GET'])
 @token_required
 def get_post(current_user, post_id):
@@ -360,3 +409,21 @@ def get_following(current_user, user_id):
             })
     
     return jsonify(following), 200
+
+
+@community_bp.route('/followers/<follower_id>/remove', methods=['DELETE'])
+@token_required
+def remove_follower(current_user, follower_id):
+    """Remove a follower (someone following the current user)"""
+    follow = UserFollow.query.filter_by(
+        follower_id=follower_id, 
+        following_id=current_user.id
+    ).first()
+    
+    if not follow:
+        return jsonify({'error': 'Follower not found'}), 404
+    
+    db.session.delete(follow)
+    db.session.commit()
+    
+    return jsonify({'message': 'Follower removed'}), 200
