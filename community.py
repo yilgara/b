@@ -148,6 +148,12 @@ def create_post(current_user):
         result = post.to_dict(current_user.id)
         print(f"[CREATE POST] Success: {result}")
         return jsonify(result), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"[CREATE POST ERROR] {str(e)}")
+        print(f"[CREATE POST ERROR] Traceback:\n{traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
 
 
 
