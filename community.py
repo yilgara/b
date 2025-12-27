@@ -75,18 +75,30 @@ def get_following_posts(current_user):
         'current_page': page
     }), 200
 
-
 @community_bp.route('/posts/high-protein', methods=['GET'])
 @token_required
 def get_high_protein_posts(current_user):
-    """Get posts sorted by protein content (high to low) - requires linked recipe"""
-
+    """Get posts sorted by protein content (high to low) - includes posts with linked recipes having protein data"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     
-    # Join with recipes and order by protein
-    query = CommunityPost.query.join(Recipe, CommunityPost.recipe_id == Recipe.id)\
-        .order_by(desc(Recipe.protein_per_serving), desc(CommunityPost.created_at))
+    # Use outerjoin to include all posts, then filter/sort by protein
+    # Posts with recipes that have protein >= 20g, ordered by protein desc
+    query = CommunityPost.query.outerjoin(Recipe, CommunityPost.recipe_id == Recipe.id)\
+        .filter(
+            db.or_(
+                Recipe.nutrition_per_serving['protein'].astext.cast(db.Integer) >= 20,
+                CommunityPost.recipe_id.is_(None)  # Include posts without recipes too, sorted at end
+            )
+        )\
+        .order_by(
+            db.case(
+                (Recipe.nutrition_per_serving['protein'].astext.cast(db.Integer).isnot(None), 
+                 Recipe.nutrition_per_serving['protein'].astext.cast(db.Integer)),
+                else_=0
+            ).desc(),
+            desc(CommunityPost.created_at)
+        )
     
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     posts = [post.to_dict(current_user.id) for post in pagination.items]
