@@ -449,7 +449,4 @@ class GroceryItem(db.Model):
             'checked': self.checked,
             'createdAt': self.created_at.isoformat() if self.created_at else None
         }
-            'recipeId': self.recipe_id,
-            'recipe': self.recipe.to_dict() if self.recipe else None,
-            'savedAt': self.created_at.isoformat() if self.created_at else None
-        }
+            
