@@ -13,6 +13,7 @@ from food_analysis import food_analysis_bp
 from chat import chat_bp
 from community import community_bp
 from saved_recipes import saved_recipes_bp
+from grocery import grocery_bp
 import os
 
 UPLOAD_DIR = os.environ.get('UPLOAD_DIR', 'uploads')
@@ -55,6 +56,7 @@ def create_app():
     app.register_blueprint(chat_bp)
     app.register_blueprint(community_bp)
     app.register_blueprint(saved_recipes_bp)
+    app.register_blueprint(grocery_bp)
 
 
     # Health check endpoint
