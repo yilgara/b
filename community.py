@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from models import db, User, CommunityPost, PostLike, PostComment, UserFollow, Recipe
 from auth import token_required
-from sqlalchemy import desc
+from sqlalchemy import desc, text
+from sqlalchemy.exc import IntegrityError
 import traceback
 import uuid
 from cloudinary_helper import upload_image
@@ -111,6 +112,7 @@ def get_post(current_user, post_id):
         return jsonify({'error': 'Post not found'}), 404
     return jsonify(post.to_dict(current_user.id)), 200
 
+
 @community_bp.route('/posts', methods=['POST'])
 @token_required
 def create_post(current_user):
@@ -195,14 +197,26 @@ def create_post(current_user):
 
         # Friendly diagnostic for common local dev setup issue:
         err_str = str(e)
+        if isinstance(e, IntegrityError) and 'community_posts_user_id_fkey' in err_str:
+            try:
+                auth_users = db.session.execute(text("select to_regclass('auth.users')")).scalar()
+            except Exception:
+                auth_users = None
+
+            hint = (
+                "Database schema mismatch: community_posts.user_id FK is pointing to auth.users, "
+                "but this backend creates/uses the public users table. "
+                "Fix by recreating the community tables with FKs referencing users(id) instead of auth.users(id)."
+            )
+            return jsonify({
+                'error': hint,
+                'details': err_str,
+                'auth_users_table_present': bool(auth_users)
+            }), 500
 
         print(f"[CREATE POST ERROR] {err_str}")
         print(f"[CREATE POST ERROR] Traceback:\n{traceback.format_exc()}")
         return jsonify({'error': err_str}), 500
-
-
-
-
 
 
 @community_bp.route('/posts/<post_id>', methods=['PUT'])
@@ -235,7 +249,9 @@ def update_post(current_user, post_id):
 @community_bp.route('/posts/<post_id>', methods=['DELETE'])
 @token_required
 def delete_post(current_user, post_id):
-    """Delete a post (only owner can delete)"""
+    """Delete a post (only owner can delete). Also deletes linked recipe if user owns it."""
+    from models import SavedRecipe
+    
     post = CommunityPost.query.get(post_id)
     
     if not post:
@@ -244,10 +260,24 @@ def delete_post(current_user, post_id):
     if post.user_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
+    recipe_deleted = False
+    
+    # If post has a linked recipe and user owns it, delete the recipe too
+    if post.recipe_id:
+        recipe = Recipe.query.get(post.recipe_id)
+        if recipe and recipe.user_id == current_user.id:
+            # Delete all saved entries for this recipe first
+            SavedRecipe.query.filter_by(recipe_id=recipe.id).delete()
+            db.session.delete(recipe)
+            recipe_deleted = True
+    
     db.session.delete(post)
     db.session.commit()
     
-    return jsonify({'message': 'Post deleted'}), 200
+    return jsonify({
+        'message': 'Post deleted',
+        'recipeDeleted': recipe_deleted
+    }), 200
 
 
 # ============================================
@@ -495,6 +525,9 @@ def remove_follower(current_user, follower_id):
     return jsonify({'message': 'Follower removed'}), 200
 
 
+# ============================================
+# ROUTES - IMAGE UPLOAD
+# ============================================
 
 @community_bp.route('/upload-image', methods=['POST'])
 @token_required
