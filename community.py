@@ -75,6 +75,7 @@ def get_following_posts(current_user):
         'current_page': page
     }), 200
 
+
 @community_bp.route('/posts/high-protein', methods=['GET'])
 @token_required
 def get_high_protein_posts(current_user):
@@ -83,14 +84,12 @@ def get_high_protein_posts(current_user):
     per_page = request.args.get('per_page', 20, type=int)
     
     # Join with Recipe and filter for posts that have recipes with protein >= 20g
+    # Use op('->>') for JSON text extraction which works with db.JSON type
+    protein_expr = Recipe.nutrition_per_serving.op('->>')('protein').cast(db.Float)
+    
     query = CommunityPost.query.join(Recipe, CommunityPost.recipe_id == Recipe.id)\
-        .filter(
-            Recipe.nutrition_per_serving['protein'].astext.cast(db.Float) >= 20
-        )\
-        .order_by(
-            Recipe.nutrition_per_serving['protein'].astext.cast(db.Float).desc(),
-            desc(CommunityPost.created_at)
-        )
+        .filter(protein_expr >= 20)\
+        .order_by(protein_expr.desc(), desc(CommunityPost.created_at))
     
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     posts = [post.to_dict(current_user.id) for post in pagination.items]
