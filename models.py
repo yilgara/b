@@ -422,3 +422,34 @@ class SavedRecipe(db.Model):
             'recipe': self.recipe.to_dict() if self.recipe else None,
             'savedAt': self.created_at.isoformat() if self.created_at else None
         }
+
+
+
+class GroceryItem(db.Model):
+    """Grocery list items for users"""
+    __tablename__ = 'grocery_items'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.String(100))
+    category = db.Column(db.String(50), default='other')
+    checked = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('grocery_items', lazy='dynamic'))
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'name': self.name,
+            'amount': self.amount,
+            'category': self.category,
+            'checked': self.checked,
+            'createdAt': self.created_at.isoformat() if self.created_at else None
+        }
+            'recipeId': self.recipe_id,
+            'recipe': self.recipe.to_dict() if self.recipe else None,
+            'savedAt': self.created_at.isoformat() if self.created_at else None
+        }
