@@ -108,7 +108,6 @@ class Meal(db.Model):
     total_protein = db.Column(db.Float, default=0)
     total_carbs = db.Column(db.Float, default=0)
     total_fat = db.Column(db.Float, default=0)
-    image_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship to food items
@@ -127,7 +126,6 @@ class Meal(db.Model):
                 'carbs': self.total_carbs,
                 'fat': self.total_fat
             },
-            'image_url': self.image_url,
             'items': [item.to_dict() for item in self.food_items],
             'timestamp': self.created_at.isoformat() if self.created_at else None
         }
