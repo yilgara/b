@@ -396,3 +396,29 @@ class UserFollow(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('follower_id', 'following_id', name='unique_user_follow'),)
+
+
+
+class SavedRecipe(db.Model):
+    """Bookmark table for users to save recipes (from other users or community)"""
+    __tablename__ = 'saved_recipes'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    recipe_id = db.Column(UUID(as_uuid=True), db.ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', backref=db.backref('saved_recipes', lazy='dynamic'))
+    recipe = db.relationship('Recipe', backref=db.backref('saved_by_users', lazy='dynamic'))
+    
+    __table_args__ = (db.UniqueConstraint('user_id', 'recipe_id', name='unique_user_saved_recipe'),)
+    
+    def to_dict(self):
+        return {
+            'id': str(self.id),
+            'userId': str(self.user_id),
+            'recipeId': str(self.recipe_id),
+            'recipe': self.recipe.to_dict() if self.recipe else None,
+            'savedAt': self.created_at.isoformat() if self.created_at else None
+        }
