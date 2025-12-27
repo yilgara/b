@@ -452,7 +452,7 @@ Guidelines:
 Respond with ONLY the JSON object."""
 
         meal_response = client.models.generate_content(
-            model='gemini-2.0-flash-lite',
+            model='gemini-flash-latest',
             contents=[meal_prompt]
         )
         
