@@ -35,7 +35,6 @@ def create_meal(current_user):
             total_protein=data.get('totals', {}).get('protein', 0),
             total_carbs=data.get('totals', {}).get('carbs', 0),
             total_fat=data.get('totals', {}).get('fat', 0),
-            image_url=data.get('image_url')
         )
         
         db.session.add(meal)
