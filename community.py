@@ -78,25 +78,17 @@ def get_following_posts(current_user):
 @community_bp.route('/posts/high-protein', methods=['GET'])
 @token_required
 def get_high_protein_posts(current_user):
-    """Get posts sorted by protein content (high to low) - includes posts with linked recipes having protein data"""
+    """Get posts with linked recipes having protein >= 20g, sorted by protein content (high to low)"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     
-    # Use outerjoin to include all posts, then filter/sort by protein
-    # Posts with recipes that have protein >= 20g, ordered by protein desc
-    query = CommunityPost.query.outerjoin(Recipe, CommunityPost.recipe_id == Recipe.id)\
+    # Join with Recipe and filter for posts that have recipes with protein >= 20g
+    query = CommunityPost.query.join(Recipe, CommunityPost.recipe_id == Recipe.id)\
         .filter(
-            db.or_(
-                Recipe.nutrition_per_serving['protein'].astext.cast(db.Integer) >= 20,
-                CommunityPost.recipe_id.is_(None)  # Include posts without recipes too, sorted at end
-            )
+            Recipe.nutrition_per_serving['protein'].astext.cast(db.Float) >= 20
         )\
         .order_by(
-            db.case(
-                (Recipe.nutrition_per_serving['protein'].astext.cast(db.Integer).isnot(None), 
-                 Recipe.nutrition_per_serving['protein'].astext.cast(db.Integer)),
-                else_=0
-            ).desc(),
+            Recipe.nutrition_per_serving['protein'].astext.cast(db.Float).desc(),
             desc(CommunityPost.created_at)
         )
     
