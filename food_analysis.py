@@ -381,7 +381,7 @@ Respond with ONLY the JSON object."""
 
         # Call Gemini with all images for ingredient detection
         ingredient_response = client.models.generate_content(
-            model='gemini-2.0-flash-lite',
+            model='gemini-flash-latest',
             contents=[*image_contents, ingredient_prompt]
         )
         
