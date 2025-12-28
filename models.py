@@ -19,8 +19,22 @@ class User(db.Model):
    
     
     # Relationship to profile
+    # Relationships with cascade delete
     profile = db.relationship('Profile', backref='user', uselist=False, cascade='all, delete-orphan')
     role = db.relationship('UserRole', backref='user', uselist=False, cascade='all, delete-orphan')
+    grocery_items = db.relationship('GroceryItem', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    meals = db.relationship('Meal', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    water_logs = db.relationship('WaterLog', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    chats = db.relationship('Chat', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    recipes = db.relationship('Recipe', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    posts = db.relationship('CommunityPost', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    post_likes = db.relationship('PostLike', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    post_comments = db.relationship('PostComment', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    saved_recipes = db.relationship('SavedRecipe', backref='user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    # UserFollow has two FKs to users - handle via foreignkeys param
+    followers = db.relationship('UserFollow', foreign_keys='UserFollow.following_id', backref='following_user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    following = db.relationship('UserFollow', foreign_keys='UserFollow.follower_id', backref='follower_user', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    
     
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -30,7 +44,7 @@ class User(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
+            'id': str(self.id),
             'email': self.email,
             'profile': self.profile.to_dict() if self.profile else None,
             'role': self.role.role if self.role else 'user'
@@ -111,7 +125,8 @@ class Meal(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship to food items
-    food_items = db.relationship('FoodItem', backref='meal', cascade='all, delete-orphan')
+    food_items = db.relationship('FoodItem', backref='meal', cascade='all, delete-orphan', passive_deletes=True)
+ 
     
     def to_dict(self):
         return {
@@ -203,7 +218,9 @@ class Recipe(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
+    community_posts = db.relationship('CommunityPost', backref='recipe', lazy='dynamic')
+    saved_by_users = db.relationship('SavedRecipe', backref='recipe', lazy='dynamic', cascade='all, delete-orphan', passive_deletes=True)
+    
     def to_dict(self):
         nutrition = self.nutrition_per_serving or {"calories": 0, "protein": 0, "carbs": 0, "fat": 0}
         return {
@@ -241,7 +258,8 @@ class Chat(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    messages = db.relationship('ChatMessage', backref='chat', cascade='all, delete-orphan', order_by='ChatMessage.created_at')
+    messages = db.relationship('ChatMessage', backref='chat', cascade='all, delete-orphan', passive_deletes=True, order_by='ChatMessage.created_at')
+    
     
     def to_dict(self, include_messages=False):
         result = {
@@ -289,10 +307,8 @@ class CommunityPost(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    user = db.relationship('User', backref=db.backref('community_posts', lazy='dynamic'))
-    recipe = db.relationship('Recipe', backref=db.backref('community_posts', lazy='dynamic'))
-    likes = db.relationship('PostLike', backref='post', cascade='all, delete-orphan')
-    comments = db.relationship('PostComment', backref='post', cascade='all, delete-orphan', order_by='PostComment.created_at')
+    likes = db.relationship('PostLike', backref='post', cascade='all, delete-orphan', passive_deletes=True)
+    comments = db.relationship('PostComment', backref='post', cascade='all, delete-orphan', passive_deletes=True, order_by='PostComment.created_at')
     
     def to_dict(self, current_user_id=None):
         user_profile = self.user.profile
@@ -371,7 +387,7 @@ class PostComment(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    user = db.relationship('User', backref=db.backref('comments', lazy='dynamic'))
+ 
     
     def to_dict(self):
         user_profile = self.user.profile if self.user else None
@@ -406,9 +422,7 @@ class SavedRecipe(db.Model):
     recipe_id = db.Column(UUID(as_uuid=True), db.ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Relationships
-    user = db.relationship('User', backref=db.backref('saved_recipes', lazy='dynamic'))
-    recipe = db.relationship('Recipe', backref=db.backref('saved_by_users', lazy='dynamic'))
+
     
     __table_args__ = (db.UniqueConstraint('user_id', 'recipe_id', name='unique_user_saved_recipe'),)
     
@@ -436,7 +450,7 @@ class GroceryItem(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    user = db.relationship('User', backref=db.backref('grocery_items', lazy='dynamic'))
+
     
     def to_dict(self):
         return {
