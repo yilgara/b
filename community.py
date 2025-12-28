@@ -124,6 +124,7 @@ def create_post(current_user):
 
         title = (data.get('title') or '').strip()
         image_url = (data.get('imageUrl') or '').strip()
+        image_position_y = data.get('imagePositionY', 50)  # 0-100 percentage
         description = (data.get('description') or '').strip()
         recipe_id = data.get('recipeId')
         
@@ -163,7 +164,6 @@ def create_post(current_user):
                 tips=recipe_data.get('tips', []),
                 tags=recipe_data.get('tags', []),
                 nutrition_per_serving=nutrition,
-                image_url=image_url
             )
             
             db.session.add(new_recipe)
@@ -179,7 +179,9 @@ def create_post(current_user):
             title=title,
             description=description,
             image_url=image_url,
-            recipe_id=recipe_id
+            image_position_y=image_position_y,
+            recipe_id=recipe_id,
+            
         )
         print(f"[CREATE POST] Created post object")
 
@@ -197,25 +199,7 @@ def create_post(current_user):
 
         # Friendly diagnostic for common local dev setup issue:
         err_str = str(e)
-        if isinstance(e, IntegrityError) and 'community_posts_user_id_fkey' in err_str:
-            try:
-                auth_users = db.session.execute(text("select to_regclass('auth.users')")).scalar()
-            except Exception:
-                auth_users = None
-
-            hint = (
-                "Database schema mismatch: community_posts.user_id FK is pointing to auth.users, "
-                "but this backend creates/uses the public users table. "
-                "Fix by recreating the community tables with FKs referencing users(id) instead of auth.users(id)."
-            )
-            return jsonify({
-                'error': hint,
-                'details': err_str,
-                'auth_users_table_present': bool(auth_users)
-            }), 500
-
-        print(f"[CREATE POST ERROR] {err_str}")
-        print(f"[CREATE POST ERROR] Traceback:\n{traceback.format_exc()}")
+        
         return jsonify({'error': err_str}), 500
 
 
@@ -239,6 +223,8 @@ def update_post(current_user, post_id):
         post.description = data['description']
     if 'imageUrl' in data:
         post.image_url = data['imageUrl']
+    if 'imagePositionY' in data:
+        post.image_position_y = data['imagePositionY']
     if 'recipeId' in data:
         post.recipe_id = data['recipeId']
     
