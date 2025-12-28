@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from functools import wraps
 import jwt
 from datetime import datetime, timedelta
-from models import db, User, Profile, UserRole
+from models import db, User, Profile, UserRole, PostLike, PostComment, CommunityPost
 from config import Config
 import re
 
@@ -215,7 +215,21 @@ def logout(current_user):
 def delete_account(current_user):
     """Permanently delete user account and all associated data"""
     try:
-        # Delete user (cascade will delete profile and user_roles)
+        # Decrease likes_count on posts the user has liked
+        user_likes = PostLike.query.filter_by(user_id=current_user.id).all()
+        for like in user_likes:
+            post = CommunityPost.query.get(like.post_id)
+            if post and post.likes_count > 0:
+                post.likes_count -= 1
+        
+        # Decrease comments_count on posts the user has commented on
+        user_comments = PostComment.query.filter_by(user_id=current_user.id).all()
+        for comment in user_comments:
+            post = CommunityPost.query.get(comment.post_id)
+            if post and post.comments_count > 0:
+                post.comments_count -= 1
+        
+        # Delete user (cascade will delete profile, user_roles, likes, comments, posts, follows)
         db.session.delete(current_user)
         db.session.commit()
         
