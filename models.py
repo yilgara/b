@@ -213,7 +213,6 @@ class Recipe(db.Model):
     tips = db.Column(db.ARRAY(db.Text), default=list)
     tags = db.Column(db.ARRAY(db.Text), default=list)
     nutrition_per_serving = db.Column(db.JSON, default=lambda: {"calories": 0, "protein": 0, "carbs": 0, "fat": 0})
-    image_url = db.Column(db.Text)
     source_url = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -242,7 +241,6 @@ class Recipe(db.Model):
                 'carbs': nutrition.get('carbs', 0),
                 'fat': nutrition.get('fat', 0)
             },
-            'imageUrl': self.image_url,
             'sourceUrl': self.source_url,
             'createdAt': self.created_at.isoformat() if self.created_at else None
         }
@@ -298,6 +296,7 @@ class CommunityPost(db.Model):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
     image_url = db.Column(db.Text, nullable=False)
+    image_position_y = db.Column(db.Integer, default=50)  # 0-100 percentage (0=top, 50=center, 100=bottom)
     title = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
     recipe_id = db.Column(db.String(36), db.ForeignKey('recipes.id', ondelete='SET NULL'), nullable=True, index=True)
@@ -343,7 +342,6 @@ class CommunityPost(db.Model):
                 'equipment': self.recipe.equipment or [],
                 'tips': self.recipe.tips or [],
                 'tags': self.recipe.tags or [],
-                'imageUrl': self.recipe.image_url,
                 'sourceUrl': self.recipe.source_url
             }
         
@@ -355,6 +353,7 @@ class CommunityPost(db.Model):
             'title': self.title,
             'description': self.description,
             'imageUrl': self.image_url,
+            'imagePositionY': self.image_position_y if self.image_position_y is not None else 50,
             'recipeId': self.recipe_id,
             'nutrition': nutrition,
             'ingredients': ingredients,
