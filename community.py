@@ -123,7 +123,7 @@ def create_post(current_user):
         print(f"[CREATE POST] User ID: {current_user.id}")
 
         title = (data.get('title') or '').strip()
-        image_position_y = data.get('imagePositionY', 50)  # 0-100 percentage
+        image_url = (data.get('imageUrl') or '').strip()
         description = (data.get('description') or '').strip()
         recipe_id = data.get('recipeId')
         
@@ -178,7 +178,7 @@ def create_post(current_user):
             user_id=current_user.id,
             title=title,
             description=description,
-            image_position_y=image_position_y,
+            image_url=image_url,
             recipe_id=recipe_id
         )
         print(f"[CREATE POST] Created post object")
@@ -237,8 +237,8 @@ def update_post(current_user, post_id):
         post.title = data['title']
     if 'description' in data:
         post.description = data['description']
-    if 'imagePositionY' in data:
-        post.image_position_y = data['imagePositionY']
+    if 'imageUrl' in data:
+        post.image_url = data['imageUrl']
     if 'recipeId' in data:
         post.recipe_id = data['recipeId']
     
