@@ -237,4 +237,4 @@ def delete_account(current_user):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'Failed to delete account'}), 500
+        return jsonify({'error': 'Failed to delete account', 'details': str(e)}), 500
